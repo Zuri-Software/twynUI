@@ -1,0 +1,130 @@
+import React, { useEffect } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { AuthProvider, useAuth } from '../context/AuthContext';
+import { FavoritesProvider } from '../context/FavoritesContext';
+import { GalleryProvider } from '../context/GalleryContext';
+import { GenerationProvider } from '../context/GenerationContext';
+import { TrainingProvider } from '../context/TrainingContext';
+import { SelectedModelProvider } from '../context/SelectedModelContext';
+import { AuthState } from '../types/auth.types';
+import AuthFlowScreen from './auth/AuthFlowScreen';
+import AppNavigator from '../navigation/AppNavigator';
+import NotificationService from '../services/NotificationService';
+
+function AppContent() {
+  console.log('🎯 [RootScreen] AppContent rendering');
+  
+  try {
+    const { authState, user, isLoading } = useAuth();
+    
+    console.log('[RootScreen] Auth state:', authState, 'User:', user ? `exists (onboarding: ${user.onboardingCompleted})` : 'null', 'Loading:', isLoading);
+
+  // Initialize notifications when user is authenticated
+  useEffect(() => {
+    if (authState === AuthState.AUTHENTICATED && user) {
+      console.log('[RootScreen] User authenticated, initializing notifications...');
+      NotificationService.initialize().then((success) => {
+        if (success) {
+          console.log('[RootScreen] ✅ Notifications initialized successfully');
+        } else {
+          console.log('[RootScreen] ⚠️ Notifications initialization failed');
+        }
+      });
+    }
+  }, [authState, user]);
+
+  if (isLoading || authState === AuthState.LOADING) {
+    console.log('[RootScreen] 🔄 Still loading, showing spinner');
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </SafeAreaView>
+    );
+  }
+
+  if (authState === AuthState.AUTHENTICATED && user) {
+    console.log('[RootScreen] 🎯 User authenticated, rendering main app. User:', user.name, 'Onboarding completed:', user.onboardingCompleted);
+    
+    // ALWAYS render main app for authenticated users - don't show AuthFlowScreen anymore
+    console.log('[RootScreen] ✅ User authenticated, rendering main app (bypassing onboarding check)');
+    console.log('[RootScreen] ✅ Rendering full app with context providers');
+    
+    // Full app with proper context stack
+    return (
+      <SelectedModelProvider>
+        <FavoritesProvider>
+          <TrainingProvider>
+            <GenerationProvider>
+              <GalleryProvider>
+                <AppNavigator key={`nav-${authState}-${user?.id || 'none'}`} />
+              </GalleryProvider>
+            </GenerationProvider>
+          </TrainingProvider>
+        </FavoritesProvider>
+      </SelectedModelProvider>
+    );
+  }
+
+  // Only show AuthFlowScreen for non-authenticated users
+  if (authState === AuthState.UNAUTHENTICATED || authState === AuthState.SENDING_OTP || authState === AuthState.VERIFYING_OTP) {
+    console.log('[RootScreen] 📱 Showing authentication flow');
+    return (
+      <AuthFlowScreen
+        onAuthComplete={() => {
+          // Auth complete, will be handled by auth state change
+          console.log('[RootScreen] 🎯 Authentication completed callback called');
+          console.log('[RootScreen] Current authState at completion:', authState);
+          console.log('[RootScreen] Current user at completion:', user ? `exists (${user.name})` : 'null');
+        }}
+      />
+    );
+  }
+
+  // Fallback for unexpected states
+  console.log('[RootScreen] ⚠️ Unexpected auth state:', authState, 'showing loading');
+  return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <ActivityIndicator size="large" color="#007AFF" />
+      <Text>Loading...</Text>
+    </SafeAreaView>
+  );
+  } catch (error) {
+    console.error('❌ [RootScreen] Error in AppContent:', error);
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'red' }}>
+        <Text style={{ color: 'white', fontSize: 20 }}>ERROR IN APPCONTENT</Text>
+        <Text style={{ color: 'white', fontSize: 16 }}>{String(error)}</Text>
+      </View>
+    );
+  }
+}
+
+export default function RootScreen() {
+  console.log('🏠 [RootScreen] Root component rendering');
+  
+  try {
+    return (
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    );
+  } catch (error) {
+    console.error('❌ [RootScreen] Error in RootScreen:', error);
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'red' }}>
+        <Text style={{ color: 'white', fontSize: 20 }}>ERROR IN ROOT</Text>
+        <Text style={{ color: 'white', fontSize: 16 }}>{String(error)}</Text>
+      </View>
+    );
+  }
+}
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+});

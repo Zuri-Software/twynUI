@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Twyn_expo_app",
-    "slug": "Twyn_expo_app",
+    "name": "Twyn",
+    "slug": "twyn",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,17 +13,41 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dhruvnashdesai.twyn",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select photos for AI model training and image generation.",
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos for AI model training."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.dhruvnashdesai.twyn",
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "fonts": [
+      "./assets/fonts/FatFrank-Heavy.otf"
+    ],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This app needs access to your photo library to select photos for AI model training and image generation.",
+          "cameraPermission": "This app needs access to your camera to take photos for AI model training."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "895b0ffc-ca13-47ca-9d32-504395c39b6f"
+      }
+    },
+    "owner": "dhruvnashdesai"
   }
 }
