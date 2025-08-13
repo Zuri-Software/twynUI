@@ -211,7 +211,7 @@ function TrainingContent({}: TrainingContentProps) {
     <>
       {/* Header with white background extending to top edge */}
       <View style={styles.headerBackground}>
-        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+        <SafeAreaView edges={[]} style={styles.headerSafeArea}>
           <View style={styles.header}>
             <Image
               source={require('../../../assets/icon.png')}
@@ -225,10 +225,38 @@ function TrainingContent({}: TrainingContentProps) {
               <TouchableOpacity style={styles.freeButton}>
                 <Text style={styles.freeButtonText}>Free</Text>
               </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.menuButton}
+                onPress={() => setShowLogoutMenu(!showLogoutMenu)}
+              >
+                <Text style={styles.menuButtonText}>⋯</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </SafeAreaView>
       </View>
+
+      {/* Logout Menu */}
+      {showLogoutMenu && (
+        <View style={styles.menuOverlay}>
+          <TouchableOpacity 
+            style={styles.menuOverlayBackground}
+            onPress={() => setShowLogoutMenu(false)}
+          />
+          <View style={styles.menuDropdown}>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => {
+                setShowLogoutMenu(false);
+                handleLogout();
+              }}
+            >
+              <Text style={styles.menuItemText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Main content area with white background */}
       <View style={styles.contentArea}>
@@ -425,7 +453,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 52, // Status bar height + padding
+    paddingBottom: 16,
     backgroundColor: '#ffffff',
   },
   spacer: {
@@ -629,5 +658,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 20,
     textAlign: 'center',
+  },
+  menuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  menuOverlayBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 120, // Position below header
+    right: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 120,
+  },
+  menuItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: '#dc3545', // Red color for logout
+    fontWeight: '500',
   },
 });

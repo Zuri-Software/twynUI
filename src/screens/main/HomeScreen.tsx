@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Alert, ScrollView, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import StaggeredGrid from '../../components/ui/StaggeredGrid';
 import { AdaptivePresetCard } from '../../components/ui/PresetCard';
@@ -34,6 +35,14 @@ export default function HomeScreen() {
   useEffect(() => {
     loadPresets();
   }, []);
+
+  // Reset category selection when returning to home screen
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[HomeScreen] Screen focused, clearing category filter');
+      setSelectedCategory(null);
+    }, [])
+  );
 
   const loadPresets = async () => {
     try {
@@ -123,7 +132,7 @@ export default function HomeScreen() {
           opacity: contentOpacity,
         },
       ]}>
-        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+        <SafeAreaView edges={[]} style={styles.headerSafeArea}>
           <View style={styles.header}>
             <View style={styles.headerContent}>
               <View style={styles.logoContainer}>
@@ -249,7 +258,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 44, // Status bar height + minimal padding
     paddingBottom: 8,
   },
   headerContent: {
@@ -308,7 +317,7 @@ const styles = StyleSheet.create({
   // Browse section (matching SwiftUI spacing)
   browseSection: {
     flex: 1,
-    paddingHorizontal: 16, // 16pt horizontal padding like SwiftUI
+    paddingHorizontal: 2, // Reduced from 16pt to 8pt for wider grid
     paddingTop: 10, // 10pt top padding from categories
   },
   browseSectionHeader: {
@@ -316,6 +325,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+    paddingHorizontal: 16
   },
   browseTitle: {
     ...TYPOGRAPHY.fatFrankTitle,

@@ -82,7 +82,7 @@ function GalleryContent() {
     <>
       {/* Header with white background extending to top edge */}
       <View style={styles.headerBackground}>
-        <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
+        <SafeAreaView edges={[]} style={styles.headerSafeArea}>
           <View style={styles.header}>
             <Image
               source={require('../../../assets/icon.png')} // Using default Expo icon for now
@@ -226,7 +226,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 52, // Status bar height + padding
+    paddingBottom: 16,
     backgroundColor: '#ffffff',
   },
   logo: {
