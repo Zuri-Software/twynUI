@@ -125,6 +125,33 @@ export function GenerationProvider({ children }: GenerationProviderProps) {
     };
   }, [state.skeletonGenerations]);
 
+  // Timeout check for stale skeleton generations (fallback when notifications fail)
+  useEffect(() => {
+    if (state.skeletonGenerations.length === 0) return;
+
+    const timeoutCheck = setInterval(() => {
+      const now = new Date().getTime();
+      
+      state.skeletonGenerations.forEach(skeleton => {
+        const ageMinutes = (now - skeleton.timestamp.getTime()) / (1000 * 60);
+        
+        // Mark as failed if older than 15 minutes and not already failed
+        if (ageMinutes > 15 && !skeleton.failed) {
+          console.log(`[GenerationContext] ⏰ Skeleton generation ${skeleton.id} timed out after ${ageMinutes.toFixed(1)} minutes, marking as failed`);
+          dispatch({ 
+            type: 'MARK_GENERATION_FAILED', 
+            payload: { 
+              id: skeleton.id, 
+              errorMessage: 'Generation timed out. Please try again.' 
+            }
+          });
+        }
+      });
+    }, 60000); // Check every minute
+
+    return () => clearInterval(timeoutCheck);
+  }, [state.skeletonGenerations.length]);
+
   const startGeneration = async (preset: Preset, characterId: string, models: any[]): Promise<void> => {
     const skeletonId = `generation_${Date.now()}`;
     

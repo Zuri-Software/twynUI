@@ -189,6 +189,11 @@ class NotificationService {
     if (data?.type === 'generation_completed') {
       this.handleGenerationCompletedNotification(data);
     }
+    
+    // Handle generation failure notifications
+    if (data?.type === 'generation_failed') {
+      this.handleGenerationFailedNotification(data);
+    }
   }
 
   /**
@@ -239,6 +244,16 @@ class NotificationService {
     // Also emit event to remove skeleton generation from GenerationContext
     this.emit('removeSkeletonGeneration', {
       generationId: data.generationId
+    });
+  }
+
+  private handleGenerationFailedNotification(data: any): void {
+    console.log('[NotificationService] ❌ Generation failed:', data.generationId, 'reason:', data.errorMessage);
+    
+    // Emit event to mark skeleton generation as failed
+    this.emit('generationFailed', {
+      generationId: data.generationId,
+      errorMessage: data.errorMessage || 'Generation failed. Please try again.'
     });
   }
 

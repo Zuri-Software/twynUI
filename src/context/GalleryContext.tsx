@@ -80,6 +80,24 @@ export function GalleryProvider({ children }: GalleryProviderProps) {
         setPendingGenerations([]);
       }
       
+      // ALSO check for failed generations by looking at time elapsed
+      // If pending generations are older than 15 minutes, likely failed
+      if (pendingGenerations.length > 0) {
+        const now = new Date().getTime();
+        const stalePending = pendingGenerations.filter(pending => {
+          const ageMinutes = (now - pending.timestamp.getTime()) / (1000 * 60);
+          return ageMinutes > 15; // 15 minutes threshold
+        });
+        
+        if (stalePending.length > 0) {
+          console.log(`[GalleryContext] 🧹 Detected ${stalePending.length} stale pending generations (>15min), clearing them`);
+          setPendingGenerations(prev => prev.filter(pending => {
+            const ageMinutes = (now - pending.timestamp.getTime()) / (1000 * 60);
+            return ageMinutes <= 15;
+          }));
+        }
+      }
+      
       // Set flattened images for backwards compatibility
       setImages(allImages);
       

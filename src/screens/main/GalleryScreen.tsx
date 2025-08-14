@@ -31,22 +31,31 @@ function GalleryContent() {
     refresh 
   } = useGallery();
   
-  const { retryGeneration } = useGeneration();
+  const { retryGeneration, skeletonGenerations } = useGeneration();
   
-  // Debug logging for pending generations
-  console.log('[GalleryScreen] 🔍 Render - pendingGenerations count:', pendingGenerations.length);
-  if (pendingGenerations.length > 0) {
-    console.log('[GalleryScreen] 🔍 Render - pendingGenerations:', pendingGenerations);
-  }
+  // Debug logging for generations
+  console.log('[GalleryScreen] 🔍 Render - skeletonGenerations count:', skeletonGenerations.length);
   console.log('[GalleryScreen] 🔍 Render - generationBatches count:', generationBatches.length);
+  if (skeletonGenerations.length > 0) {
+    console.log('[GalleryScreen] 🔍 Render - skeletonGenerations:', skeletonGenerations.map(s => ({
+      id: s.id,
+      preset: s.preset.name,
+      failed: s.failed,
+      errorMessage: s.errorMessage
+    })));
+  }
   
-  // Add effect to watch for pending generations changes
+  // Add effect to watch for skeleton generations changes
   useEffect(() => {
-    console.log('[GalleryScreen] 🎯 pendingGenerations changed:', pendingGenerations.length);
-    if (pendingGenerations.length > 0) {
-      console.log('[GalleryScreen] 🎯 Pending generations details:', pendingGenerations);
+    console.log('[GalleryScreen] 🎯 skeletonGenerations changed:', skeletonGenerations.length);
+    if (skeletonGenerations.length > 0) {
+      console.log('[GalleryScreen] 🎯 Skeleton generations details:', skeletonGenerations.map(s => ({
+        id: s.id,
+        failed: s.failed,
+        errorMessage: s.errorMessage
+      })));
     }
-  }, [pendingGenerations]);
+  }, [skeletonGenerations]);
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState<any | null>(null);
@@ -123,19 +132,22 @@ function GalleryContent() {
           {/* Gallery Grid */}
           <View style={styles.gridContainer}>
             <View style={styles.grid}>
-              {/* Pending generations (skeleton loading) */}
-              {pendingGenerations.length > 0 && console.log('[GalleryScreen] 🎨 Rendering', pendingGenerations.length, 'pending generations')}
-              {pendingGenerations.map((pendingGen) => {
-                console.log('[GalleryScreen] 🎨 Rendering skeleton for:', pendingGen.id, pendingGen.preset?.name, 'failed:', pendingGen.failed);
+              {/* Skeleton generations (loading and failed) */}
+              {skeletonGenerations.length > 0 && console.log('[GalleryScreen] 🎨 Rendering', skeletonGenerations.length, 'skeleton generations')}
+              {skeletonGenerations.map((skeleton) => {
+                console.log('[GalleryScreen] 🎨 Rendering skeleton for:', skeleton.id, skeleton.preset?.name, 'failed:', skeleton.failed);
                 return (
-                  <View key={pendingGen.id} style={[styles.gridItem, { width: itemWidth }]}>
+                  <View key={skeleton.id} style={[styles.gridItem, { width: itemWidth }]}>
                     <SkeletonImageView 
-                      preset={pendingGen.preset}
+                      preset={{
+                        name: skeleton.preset.name,
+                        image_url: skeleton.preset.image_url
+                      }}
                       width={itemWidth - 10}
                       height={(itemWidth - 10) * 4 / 3}
-                      failed={pendingGen.failed}
-                      errorMessage={pendingGen.errorMessage}
-                      onRetry={() => retryGeneration(pendingGen.id)}
+                      failed={skeleton.failed}
+                      errorMessage={skeleton.errorMessage}
+                      onRetry={() => retryGeneration(skeleton.id)}
                     />
                   </View>
                 );
