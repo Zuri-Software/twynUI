@@ -46,8 +46,20 @@ function AppContent() {
   if (authState === AuthState.AUTHENTICATED && user) {
     console.log('[RootScreen] 🎯 User authenticated, rendering main app. User:', user.name, 'Onboarding completed:', user.onboardingCompleted);
     
-    // ALWAYS render main app for authenticated users - don't show AuthFlowScreen anymore
-    console.log('[RootScreen] ✅ User authenticated, rendering main app (bypassing onboarding check)');
+    // Check if user has completed onboarding
+    if (!user.onboardingCompleted) {
+      console.log('[RootScreen] 📋 User needs to complete onboarding, showing AuthFlowScreen');
+      return (
+        <AuthFlowScreen
+          onAuthComplete={() => {
+            // Onboarding complete, will be handled by auth state change
+            console.log('[RootScreen] 🎯 Onboarding completed callback called');
+          }}
+        />
+      );
+    }
+    
+    console.log('[RootScreen] ✅ User authenticated and onboarding completed, rendering main app');
     console.log('[RootScreen] ✅ Rendering full app with context providers');
     
     // Full app with proper context stack

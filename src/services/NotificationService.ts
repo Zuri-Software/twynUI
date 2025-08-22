@@ -194,6 +194,11 @@ class NotificationService {
     if (data?.type === 'generation_failed') {
       this.handleGenerationFailedNotification(data);
     }
+    
+    // Handle NSFW content notifications
+    if (data?.type === 'generation_nsfw') {
+      this.handleGenerationNSFWNotification(data);
+    }
   }
 
   /**
@@ -254,6 +259,17 @@ class NotificationService {
     this.emit('generationFailed', {
       generationId: data.generationId,
       errorMessage: data.errorMessage || 'Generation failed. Please try again.'
+    });
+  }
+
+  private handleGenerationNSFWNotification(data: any): void {
+    console.log('[NotificationService] 🚫 Generation flagged as NSFW:', data.generationId);
+    
+    // Emit event to mark skeleton generation as NSFW (similar to failed but different message)
+    this.emit('generationFailed', {
+      generationId: data.generationId,
+      errorMessage: 'Content flagged as inappropriate. Please try a different prompt.',
+      isNSFW: true
     });
   }
 

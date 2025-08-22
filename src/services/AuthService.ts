@@ -65,12 +65,17 @@ class AuthService {
   // Token management
   private async storeTokens(accessToken: string, refreshToken: string): Promise<void> {
     try {
+      console.log('[AuthService] 🔒 Storing tokens:', {
+        accessToken: accessToken.substring(0, 20) + '...',
+        refreshToken: refreshToken.substring(0, 20) + '...'
+      });
       await Promise.all([
         SecureStore.setItemAsync(AuthService.ACCESS_TOKEN_KEY, accessToken),
         SecureStore.setItemAsync(AuthService.REFRESH_TOKEN_KEY, refreshToken)
       ]);
+      console.log('[AuthService] ✅ Tokens stored successfully');
     } catch (error) {
-      console.error('[AuthService] Error storing tokens:', error);
+      console.error('[AuthService] ❌ Error storing tokens:', error);
       throw error;
     }
   }
@@ -86,9 +91,11 @@ class AuthService {
 
   public async getAccessToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(AuthService.ACCESS_TOKEN_KEY);
+      const token = await SecureStore.getItemAsync(AuthService.ACCESS_TOKEN_KEY);
+      console.log('[AuthService] 🔓 Retrieved access token:', token ? `${token.substring(0, 20)}...` : 'null');
+      return token;
     } catch (error) {
-      console.error('[AuthService] Error getting access token:', error);
+      console.error('[AuthService] ❌ Error getting access token:', error);
       return null;
     }
   }
@@ -190,18 +197,26 @@ class AuthService {
   // Refresh access token
   public async refreshToken(): Promise<boolean> {
     try {
+      console.log('[AuthService] 🔄 Starting token refresh...');
       const refreshToken = await this.getRefreshToken();
       if (!refreshToken) {
         throw new Error('No refresh token available');
       }
 
+      console.log('[AuthService] 📤 Sending refresh request with token:', refreshToken.substring(0, 20) + '...');
       const request: RefreshTokenRequest = { refreshToken };
       const response = await axios.post<RefreshTokenResponse>(`${API_BASE_URL}/auth/refresh`, request);
       
+      console.log('[AuthService] 📥 Refresh response received:', {
+        success: !!response.data.access_token,
+        accessToken: response.data.access_token ? response.data.access_token.substring(0, 20) + '...' : 'missing'
+      });
+      
       await this.storeTokens(response.data.access_token, response.data.refresh_token);
+      console.log('[AuthService] ✅ Token refresh completed successfully');
       return true;
     } catch (error) {
-      console.error('[AuthService] Token refresh failed:', error);
+      console.error('[AuthService] ❌ Token refresh failed:', error);
       await this.logout();
       return false;
     }
@@ -240,7 +255,7 @@ class AuthService {
         throw new Error('Not authenticated');
       }
 
-      const response = await axios.patch(`${API_BASE_URL}/user/profile`, profileData, {
+      const response = await axios.put(`${API_BASE_URL}/users/profile`, profileData, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 
@@ -269,7 +284,7 @@ class AuthService {
         throw new Error('Not authenticated');
       }
 
-      const response = await axios.post(`${API_BASE_URL}/user/complete-onboarding`, {}, {
+      const response = await axios.post(`${API_BASE_URL}/users/complete-onboarding`, {}, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
 

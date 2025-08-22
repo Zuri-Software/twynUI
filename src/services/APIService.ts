@@ -417,6 +417,20 @@ class APIServiceClass {
       throw this.handleError(error);
     }
   }
+
+  // Delete a model
+  async deleteModel(modelId: string): Promise<void> {
+    try {
+      console.log('[🗑️ APIService] Deleting model:', modelId);
+      
+      await this.delete(`/models/${modelId}`);
+      
+      console.log('[🗑️ APIService] ✅ Model deleted successfully:', modelId);
+    } catch (error: any) {
+      console.error('[🗑️ APIService] ❌ Failed to delete model:', error);
+      throw this.handleError(error);
+    }
+  }
 }
 
 // Export singleton instance

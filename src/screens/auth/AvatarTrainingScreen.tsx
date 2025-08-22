@@ -28,7 +28,7 @@ interface SelectedImage {
 }
 
 export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainingScreenProps) {
-  const { getAuthHeader } = useAuth();
+  const { getAuthHeader, logout } = useAuth();
   
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -54,7 +54,7 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
         quality: 0.8,
         aspect: [1, 1],
@@ -69,10 +69,9 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
           height: asset.height,
         }));
         
-        setSelectedImages(images);
         setErrorMessage(null);
         
-        // Auto-start upload if images are selected
+        // Immediately start upload without showing preview
         if (images.length > 0) {
           uploadPhotos(images);
         }
@@ -93,6 +92,9 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
       if (!authHeader) {
         throw new Error('Not authenticated');
       }
+      
+      console.log('[AvatarTraining] 🔑 Auth header:', authHeader ? 'present' : 'missing');
+      console.log('[AvatarTraining] 🌐 API URL:', process.env.EXPO_PUBLIC_API_URL);
 
       // Convert images to form data
       const formData = new FormData();
@@ -114,15 +116,21 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
 
       setProgressText('Uploading to cloud...');
 
+      const API_BASE_URL = 'https://twynbackend-production.up.railway.app/api';
+      console.log('[AvatarTraining] 📤 Starting upload to:', `${API_BASE_URL}/onboarding/batch-upload`);
+      console.log('[AvatarTraining] 📝 FormData has', images.length, 'images');
+      
       // Upload to backend
-      const uploadResponse = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/onboarding/batch-upload`, {
+      const uploadResponse = await fetch(`${API_BASE_URL}/onboarding/batch-upload`, {
         method: 'POST',
         headers: {
           'Authorization': authHeader,
-          'Content-Type': 'multipart/form-data',
+          // Don't set Content-Type - let the browser set it automatically for FormData
         },
         body: formData,
       });
+      
+      console.log('[AvatarTraining] 📥 Upload response status:', uploadResponse.status);
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
@@ -139,6 +147,7 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
       console.error('[AvatarTraining] Upload error:', error);
       setErrorMessage(error.message || 'Failed to upload photos. Please try again.');
       setIsUploading(false);
+      // If upload fails, user can tap the selected images to try again or use skip button
     }
   };
 
@@ -152,43 +161,40 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
         
         {/* Header Section */}
         <View style={styles.header}>
-          {/* Logo placeholder */}
-          <View style={styles.logoPlaceholder}>
-            <Text style={styles.logoText}>TWYN</Text>
-          </View>
-          
-          {/* Upload area / Avatar image placeholder */}
+          {/* Temporary Reset Button for Testing */}
           <TouchableOpacity
-            style={styles.uploadArea}
+            style={styles.resetButton}
+            onPress={async () => {
+              Alert.alert(
+                'Reset App',
+                'This will clear all cached data and restart the onboarding flow.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Reset', style: 'destructive', onPress: () => logout() }
+                ]
+              );
+            }}
+          >
+            <Text style={styles.resetButtonText}>🔄 Reset for Testing</Text>
+          </TouchableOpacity>
+          
+          {/* Main App Logo */}
+          <Image
+            source={require('../../../assets/icon.png')}
+            style={styles.logo}
+            contentFit="contain"
+          />
+          
+          {/* Avatar Upload Image */}
+          <TouchableOpacity
             onPress={handleSelectPhotos}
             disabled={isUploading}
           >
-            {selectedImages.length > 0 ? (
-              <View style={styles.selectedImagesPreview}>
-                <View style={styles.imageGrid}>
-                  {selectedImages.slice(0, 4).map((image, index) => (
-                    <Image
-                      key={image.id}
-                      source={{ uri: image.uri }}
-                      style={styles.previewImage}
-                      contentFit="cover"
-                    />
-                  ))}
-                  {selectedImages.length > 4 && (
-                    <View style={styles.moreImagesOverlay}>
-                      <Text style={styles.moreImagesText}>+{selectedImages.length - 4}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ) : (
-              <View style={styles.uploadPlaceholder}>
-                <View style={styles.uploadIcon}>
-                  <Text style={styles.uploadEmoji}>📷</Text>
-                </View>
-                <Text style={styles.uploadText}>Tap to select photos</Text>
-              </View>
-            )}
+            <Image
+              source={require('../../../assets/images/ui/avatar_upload.png')}
+              style={styles.avatarUploadImage}
+              contentFit="contain"
+            />
           </TouchableOpacity>
         </View>
 
@@ -196,17 +202,12 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
         <View style={styles.titleSection}>
           <Text style={styles.title}>Make your Twyn</Text>
           <Text style={styles.description}>
-            Your AI Twin. Your Aesthetic. Your Rules. It only takes one moment and 20+ images of yourself
+            Your AI Twin. Your Aesthetic. Your Rules. It only takes one moment
           </Text>
         </View>
 
         {/* Status Section */}
         <View style={styles.statusSection}>
-          {selectedImages.length > 0 && !isUploading && (
-            <Text style={styles.selectedCount}>
-              Selected {selectedImages.length} photo{selectedImages.length !== 1 ? 's' : ''}
-            </Text>
-          )}
 
           {isUploading && (
             <View style={styles.progressContainer}>
@@ -223,23 +224,12 @@ export default function AvatarTrainingScreen({ onUploadComplete }: AvatarTrainin
         {/* Action Buttons */}
         <View style={styles.actionSection}>
           {!isUploading && (
-            <>
-              {selectedImages.length === 0 && (
-                <TouchableOpacity
-                  style={styles.selectButton}
-                  onPress={handleSelectPhotos}
-                >
-                  <Text style={styles.selectButtonText}>Select Photos (Max 25)</Text>
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.skipButton}
-                onPress={handleSkip}
-              >
-                <Text style={styles.skipButtonText}>Skip for now</Text>
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleSkip}
+            >
+              <Text style={styles.skipButtonText}>Skip for now</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -262,21 +252,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  logoPlaceholder: {
-    width: 80,
-    height: 60,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logo: {
+    width: 120,
+    height: 80,
     marginBottom: 20,
   },
-  logoText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FF48D8',
+  resetButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#FF6B6B',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    zIndex: 1000,
   },
-  uploadArea: {
+  resetButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  avatarUploadImage: {
+    width: screenWidth * 0.6,
+    height: screenWidth * 0.6,
+    marginBottom: 20,
+  },
+  selectedImagesContainer: {
     width: screenWidth * 0.8,
     height: 200,
     borderRadius: 20,
@@ -287,20 +288,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
-  },
-  uploadPlaceholder: {
-    alignItems: 'center',
-  },
-  uploadIcon: {
-    marginBottom: 12,
-  },
-  uploadEmoji: {
-    fontSize: 48,
-  },
-  uploadText: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
   },
   selectedImagesPreview: {
     width: '100%',
@@ -377,23 +364,6 @@ const styles = StyleSheet.create({
   },
   actionSection: {
     alignItems: 'center',
-  },
-  selectButton: {
-    backgroundColor: '#FF48D8',
-    borderRadius: 25,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  selectButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
   },
   skipButton: {
     paddingVertical: 12,

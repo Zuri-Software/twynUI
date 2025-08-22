@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { TrainingProvider, useTraining } from '../../context/TrainingContext';
 import { useAuth } from '../../context/AuthContext';
+// Force TypeScript refresh
 import { useSelectedModel } from '../../context/SelectedModelContext';
 import { useNavigation } from '@react-navigation/native';
 import ModelCard from '../../components/ui/ModelCard';
@@ -27,9 +28,10 @@ interface TrainingContentProps {
 }
 
 function TrainingContent({}: TrainingContentProps) {
-  const { logout } = useAuth();
+  const { logout, getAuthHeader } = useAuth();
   const navigation = useNavigation();
   const { selectedModelId, setSelectedModelId } = useSelectedModel();
+  // Get training context
   const { 
     models,
     skeletonModels,
@@ -38,7 +40,7 @@ function TrainingContent({}: TrainingContentProps) {
     refreshModels,
     renameModel,
     deleteModel,
-    startTraining 
+    startTraining
   } = useTraining();
 
   const [isDeleteMode, setIsDeleteMode] = useState(false);
@@ -87,26 +89,178 @@ function TrainingContent({}: TrainingContentProps) {
   };
 
   const handleGenerateNew = async () => {
-    // Ask for model name first
-    Alert.prompt(
-      'Create Model',
-      'Enter a name for your new model:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Next',
-          onPress: (modelName) => {
-            if (modelName && modelName.trim()) {
-              handleSelectPhotos(modelName.trim());
-            } else {
-              handleSelectPhotos(`Model ${models.length + skeletonModels.length + 1}`);
+    // First check if user has onboarding photos
+    try {
+      const authHeader = await getAuthHeader();
+      if (!authHeader) {
+        Alert.alert('Error', 'Authentication required');
+        return;
+      }
+
+      const response = await fetch('https://twynbackend-production.up.railway.app/api/onboarding/check-temp-folder', {
+        method: 'GET',
+        headers: {
+          'Authorization': authHeader,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.hasOnboardingImages) {
+          // User has onboarding photos, ask for model name and use those photos
+          Alert.prompt(
+            'Create Model',
+            `Found ${data.imageCount} photos from your onboarding upload. Enter a name for your model:`,
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { 
+                text: 'Create Model',
+                onPress: (modelName) => {
+                  const finalModelName = modelName?.trim() || `Model ${models.length + skeletonModels.length + 1}`;
+                  handleTrainFromOnboardingPhotos(finalModelName, data.tempFolderName);
+                }
+              }
+            ],
+            'plain-text',
+            `Model ${models.length + skeletonModels.length + 1}`
+          );
+          return;
+        }
+      }
+      
+      // No onboarding photos found, use regular photo picker flow
+      Alert.prompt(
+        'Create Model',
+        'Enter a name for your new model:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Next',
+            onPress: (modelName) => {
+              if (modelName && modelName.trim()) {
+                handleSelectPhotos(modelName.trim());
+              } else {
+                handleSelectPhotos(`Model ${models.length + skeletonModels.length + 1}`);
+              }
             }
           }
+        ],
+        'plain-text',
+        `Model ${models.length + skeletonModels.length + 1}`
+      );
+      
+    } catch (error) {
+      console.error('[Training] Error checking onboarding photos:', error);
+      // Fallback to regular photo picker flow
+      Alert.prompt(
+        'Create Model',
+        'Enter a name for your new model:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Next',
+            onPress: (modelName) => {
+              if (modelName && modelName.trim()) {
+                handleSelectPhotos(modelName.trim());
+              } else {
+                handleSelectPhotos(`Model ${models.length + skeletonModels.length + 1}`);
+              }
+            }
+          }
+        ],
+        'plain-text',
+        `Model ${models.length + skeletonModels.length + 1}`
+      );
+    }
+  };
+
+  const handleTrainFromOnboardingPhotos = async (modelName: string, tempFolderName: string) => {
+    try {
+      setIsTrainingStarting(true);
+
+      console.log('[Training] Creating model from onboarding photos:', { modelName, tempFolderName });
+
+      const authHeader = await getAuthHeader();
+      if (!authHeader) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch('https://twynbackend-production.up.railway.app/api/onboarding/train-from-images', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          modelName: modelName,
+          tempFolderName: tempFolderName
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create model from onboarding photos');
+      }
+
+      const result = await response.json();
+      console.log('[Training] Model creation started:', result);
+
+      // Refresh models immediately to show the new training model
+      await refreshModels();
+
+      // Start more frequent polling for this specific training
+      startPollingForTrainingCompletion(modelName);
+
+      Alert.alert(
+        'Model Training Started',
+        `Your model "${modelName}" is now training with your onboarding photos. This may take 10-20 minutes.`,
+        [{ text: 'OK' }]
+      );
+
+    } catch (error: any) {
+      console.error('[Training] Error creating model from onboarding photos:', error);
+      Alert.alert('Error', error.message || 'Failed to create model from onboarding photos');
+    } finally {
+      setIsTrainingStarting(false);
+    }
+  };
+
+  // Helper function to poll more frequently when we know training is happening
+  const startPollingForTrainingCompletion = (modelName: string) => {
+    console.log(`[Training] Starting frequent polling for model: ${modelName}`);
+    
+    let pollCount = 0;
+    const maxPolls = 60; // 30 minutes max (30s * 60 = 1800s)
+    
+    const interval = setInterval(async () => {
+      pollCount++;
+      console.log(`[Training] Polling ${pollCount}/${maxPolls} for model: ${modelName}`);
+      
+      try {
+        await refreshModels();
+        
+        // Check if training completed (model exists and not in training status)
+        const completedModel = models.find(model => 
+          model.name === modelName && 
+          (model.status === 'completed' || model.status === 'failed')
+        );
+        
+        if (completedModel) {
+          console.log(`[Training] Model ${modelName} completed with status: ${completedModel.status}`);
+          clearInterval(interval);
+          return;
         }
-      ],
-      'plain-text',
-      `Model ${models.length + skeletonModels.length + 1}` // Default placeholder
-    );
+        
+        if (pollCount >= maxPolls) {
+          console.log(`[Training] Polling timeout for model: ${modelName}`);
+          clearInterval(interval);
+          return;
+        }
+      } catch (error) {
+        console.error(`[Training] Polling error for model ${modelName}:`, error);
+      }
+    }, 30000); // Check every 30 seconds
   };
 
   const handleSelectPhotos = async (modelName: string) => {
@@ -258,6 +412,15 @@ function TrainingContent({}: TrainingContentProps) {
         </View>
       )}
 
+      {/* Delete mode overlay - tap outside to dismiss */}
+      {isDeleteMode && (
+        <TouchableOpacity 
+          style={styles.deleteOverlay}
+          onPress={() => setIsDeleteMode(false)}
+          activeOpacity={1}
+        />
+      )}
+
       {/* Main content area with white background */}
       <View style={styles.contentArea}>
         <ScrollView
@@ -334,7 +497,7 @@ function TrainingContent({}: TrainingContentProps) {
           {/* Model Management Section */}
           {(models.length > 0 || skeletonModels.length > 0) && (
             <View style={styles.modelsSection}>
-              <View style={styles.modelsGrid}>
+              <View style={[styles.modelsGrid, isDeleteMode && styles.modelsGridDeleteMode]}>
                 {/* Skeleton models first */}
                 {skeletonModels.map((skeletonModel) => (
                   <View key={skeletonModel.id} style={[styles.modelItem, { width: itemWidth }]}>
@@ -696,5 +859,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#dc3545', // Red color for logout
     fontWeight: '500',
+  },
+  deleteOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 5, // Lower than model cards in delete mode
+    backgroundColor: 'transparent',
+  },
+  modelsGridDeleteMode: {
+    zIndex: 1000, // Ensure model cards are above the overlay in delete mode
+    elevation: 1000, // For Android
   },
 });

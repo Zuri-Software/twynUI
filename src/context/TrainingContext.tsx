@@ -277,13 +277,30 @@ export const TrainingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteModel = async (id: string) => {
     try {
-      // TODO: Implement delete API call once backend endpoint is ready
-      // await APIService.deleteModel(id);
-      console.log('Deleting model:', id);
+      console.log('[TrainingContext] 🗑️ Starting delete for model:', id);
+      
+      // Call backend API to delete model (includes S3 cleanup and database deletion)
+      await APIService.deleteModel(id);
+      
+      console.log('[TrainingContext] ✅ Model deleted from backend, updating local state');
+      
+      // Remove from local state only after successful backend deletion
       dispatch({ type: 'DELETE_MODEL', payload: id });
-    } catch (error) {
-      console.error('Failed to delete model:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to delete model' });
+      
+    } catch (error: any) {
+      console.error('[TrainingContext] ❌ Failed to delete model:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to delete model';
+      if (error.message?.includes('404')) {
+        errorMessage = 'Model not found or already deleted';
+      } else if (error.message?.includes('403')) {
+        errorMessage = 'You do not have permission to delete this model';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
     }
   };
 

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
@@ -89,20 +90,25 @@ export default function PhoneNumberScreen({ onOTPSent }: PhoneNumberScreenProps)
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.content}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>Enter your phone number</Text>
-              <Text style={styles.subtitle}>
-                We'll send you a verification code
-              </Text>
+            {/* Top Spacer - Fixed Height */}
+            <View style={styles.topSpacer} />
+            
+            {/* Phone Screen Image */}
+            <View style={styles.imageContainer}>
+              <Image 
+                source={require('../../../assets/images/training/phonescreen.png')}
+                style={styles.phoneScreenImage}
+                resizeMode="contain"
+              />
             </View>
 
             {/* Phone Input */}
@@ -125,7 +131,8 @@ export default function PhoneNumberScreen({ onOTPSent }: PhoneNumberScreenProps)
                   keyboardType="phone-pad"
                   textContentType="telephoneNumber"
                   autoComplete="tel"
-                  maxLength={15} // Allow for different country formats
+                  maxLength={15}
+                  autoFocus={true}
                 />
               </View>
 
@@ -135,33 +142,36 @@ export default function PhoneNumberScreen({ onOTPSent }: PhoneNumberScreenProps)
               ) : null}
             </View>
 
-            {/* Continue Button */}
+            {/* Continue Button - Custom Image Style */}
             <TouchableOpacity
-              style={[
-                styles.continueButton,
-                {
-                  backgroundColor: isValidPhoneNumber() && !isLoading ? '#007AFF' : '#cccccc',
-                },
-              ]}
+              style={styles.continueButtonContainer}
               onPress={handleSendOTP}
               disabled={!isValidPhoneNumber() || isLoading}
             >
               {isLoading ? (
-                <View style={styles.loadingContainer}>
+                <View style={styles.loadingButton}>
                   <ActivityIndicator color="white" size="small" />
                   <Text style={styles.loadingText}>Sending...</Text>
                 </View>
               ) : (
-                <Text style={styles.continueButtonText}>Continue</Text>
+                <Image 
+                  source={require('../../../assets/images/ui/phonescreen_button.png')}
+                  style={[
+                    styles.buttonImage,
+                    { opacity: isValidPhoneNumber() ? 1.0 : 0.5 }
+                  ]}
+                  resizeMode="contain"
+                />
               )}
             </TouchableOpacity>
 
             {/* Terms of Service */}
             <Text style={styles.termsText}>
-              By continuing, you agree to our{' '}
-              <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-              <Text style={styles.termsLink}>Privacy Policy</Text>
+              By continuing, you agree to our Terms of Service and Privacy Policy
             </Text>
+            
+            {/* Bottom Spacer - Fixed Height */}
+            <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -178,36 +188,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
+    minHeight: '100%',
   },
   content: {
-    flex: 1,
-    paddingHorizontal: 32,
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    minHeight: '100%',
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
+  topSpacer: {
+    height: 20, // Reduced height to move image up
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000000',
-    textAlign: 'center',
-    marginBottom: 8,
+  imageContainer: {
+    alignItems: 'center', // Reduced spacing between image and input field
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
-    textAlign: 'center',
+  phoneScreenImage: {
+    width: '100%',
+    maxWidth: 380, // Even bigger size
+    height: 280,   // Even bigger height
   },
   inputContainer: {
-    marginBottom: 32,
+    marginBottom: 0, // No space between input and button
   },
   phoneInputWrapper: {
     flexDirection: 'row',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -222,24 +225,27 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#ff3333',
-    fontSize: 14,
+    fontSize: 12,
     marginTop: 8,
     textAlign: 'center',
   },
-  continueButton: {
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 20,
+  continueButtonContainer: {
+    alignItems: 'center',    // Space from input field to button // Space after button
   },
-  continueButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
+  buttonImage: {
+    width: '100%',
+    maxWidth: 320, // Match phone screen image width
+    aspectRatio: 531/67, // Use the original aspect ratio (≈7.9:1)
   },
-  loadingContainer: {
+  loadingButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#cccccc',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    justifyContent: 'center',
   },
   loadingText: {
     color: 'white',
@@ -252,9 +258,10 @@ const styles = StyleSheet.create({
     color: '#666666',
     textAlign: 'center',
     lineHeight: 18,
+    marginHorizontal: 16,
+    marginBottom: 20, // Add some margin from bottom
   },
-  termsLink: {
-    color: '#007AFF',
-    fontWeight: '500',
+  bottomSpacer: {
+    height: 40, // Fixed height instead of flex
   },
 });

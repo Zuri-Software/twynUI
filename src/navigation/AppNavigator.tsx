@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
+import { HomeIcon, FavoritesIcon, GalleryIcon, TrainingIcon } from '../components/icons/TabIcons';
 
 // Import screens
 import HomeScreen from '../screens/main/HomeScreen';
@@ -151,35 +152,24 @@ function TrainingStackNavigator() {
 // Custom Tab Bar (matching Swift design)
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const getTabIcon = (routeName: string, isFocused: boolean) => {
-    const iconAssets = {
-      Home: {
-        normal: require('../../assets/images/tabs/homeview_tab.png'),
-        clicked: require('../../assets/images/tabs/homeview_tab_clicked.png')
-      },
-      Favorites: {
-        normal: require('../../assets/images/tabs/favourites_tab.png'),
-        clicked: require('../../assets/images/tabs/favourites_tab_clicked.png')
-      },
-      Gallery: {
-        normal: require('../../assets/images/tabs/gallery_tab.png'),
-        clicked: require('../../assets/images/tabs/gallery_tab_clicked.png')
-      },
-      Training: {
-        normal: require('../../assets/images/tabs/profile_tab.png'),
-        clicked: require('../../assets/images/tabs/profile_tab_clicked.png')
-      },
+    const iconProps = {
+      size: 24,
+      color: '#ffffff',
+      focused: isFocused,
     };
     
-    const routeAssets = iconAssets[routeName as keyof typeof iconAssets];
-    if (!routeAssets) return null;
-    
-    return (
-      <Image
-        source={isFocused ? routeAssets.clicked : routeAssets.normal}
-        style={styles.tabIcon}
-        contentFit="contain"
-      />
-    );
+    switch (routeName) {
+      case 'Home':
+        return <HomeIcon {...iconProps} />;
+      case 'Favorites':
+        return <FavoritesIcon {...iconProps} />;
+      case 'Gallery':
+        return <GalleryIcon {...iconProps} />;
+      case 'Training':
+        return <TrainingIcon {...iconProps} />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -308,7 +298,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 32,   // Rounded bottom corners only
     borderBottomRightRadius: 32,
     overflow: 'hidden',
-    marginBottom: 80,             // Space for tab bar
+    marginBottom: 90,             // Updated space for taller tab bar
   },
   tabBar: {
     position: 'absolute',
@@ -323,8 +313,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 34,        // Safe area padding
-    paddingTop: 10,           // Top padding
-    height: 80,               // Total height
+    paddingTop: 20,           // Top padding
+    height: 90,               // Increased total height
   },
   spacer: {
     flex: 1, // Left and right spacers for centering
@@ -341,9 +331,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 44, // Match SwiftUI touch target size
     height: 44,
-  },
-  tabIcon: {
-    width: 24,
-    height: 24,
   },
 });

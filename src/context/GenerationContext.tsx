@@ -81,6 +81,9 @@ export function GenerationProvider({ children }: GenerationProviderProps) {
     loading: false,
     error: null,
   });
+  
+  // Note: We can't use useGallery here because it would create a circular dependency
+  // The polling will trigger a manual refresh of the gallery through the refresh function
 
   // Listen for generation completion and failure notifications
   useEffect(() => {
@@ -107,7 +110,7 @@ export function GenerationProvider({ children }: GenerationProviderProps) {
             type: 'MARK_GENERATION_FAILED', 
             payload: { 
               id: skeleton.id, 
-              errorMessage: 'Generation failed. Please try again.' 
+              errorMessage: data.errorMessage || 'Generation failed. Please try again.' 
             }
           });
         }
@@ -135,7 +138,7 @@ export function GenerationProvider({ children }: GenerationProviderProps) {
       state.skeletonGenerations.forEach(skeleton => {
         const ageMinutes = (now - skeleton.timestamp.getTime()) / (1000 * 60);
         
-        // Mark as failed if older than 15 minutes and not already failed
+        // Mark as failed if older than 15 minutes and not already failed (gives backend extra time beyond its 10min timeout)
         if (ageMinutes > 15 && !skeleton.failed) {
           console.log(`[GenerationContext] ⏰ Skeleton generation ${skeleton.id} timed out after ${ageMinutes.toFixed(1)} minutes, marking as failed`);
           dispatch({ 
@@ -151,6 +154,74 @@ export function GenerationProvider({ children }: GenerationProviderProps) {
 
     return () => clearInterval(timeoutCheck);
   }, [state.skeletonGenerations.length]);
+
+  // Fallback polling when skeleton generations exist (since push notifications might not work)
+  useEffect(() => {
+    if (state.skeletonGenerations.length === 0) return;
+
+    console.log('[GenerationContext] Skeleton generations detected, starting fallback polling');
+    let pollCount = 0;
+    const maxPolls = 40; // 20 minutes max (30s * 40 = 1200s) - longer than backend timeout to catch any late completions
+    
+    const interval = setInterval(() => {
+      pollCount++;
+      console.log(`[GenerationContext] Fallback poll ${pollCount}/${maxPolls} - checking for completed generations`);
+      
+      if (pollCount >= maxPolls) {
+        console.log('[GenerationContext] Fallback polling timeout reached, stopping');
+        clearInterval(interval);
+        return;
+      }
+      
+      // Check for new images to detect completed generations
+      // This is a fallback when push notifications aren't working
+      checkForCompletedGenerations();
+      
+    }, 30000); // Check every 30 seconds
+
+    return () => {
+      console.log('[GenerationContext] Stopping generation fallback polling');
+      clearInterval(interval);
+    };
+  }, [state.skeletonGenerations.length]);
+
+  // Helper function to check if generations have completed (fallback when notifications fail)
+  const checkForCompletedGenerations = async () => {
+    try {
+      console.log('[GenerationContext] Checking for completed generations...');
+      
+      // Fetch latest images to see if new ones appeared
+      const response = await APIService.fetchImageBatches();
+      const currentTime = new Date().getTime();
+      
+      // Look for images that were created recently (within the last hour)
+      // This is a simple heuristic - when notifications work properly, this won't be needed
+      const recentBatches = response.batches.filter(batch => {
+        const batchTime = new Date(batch.created_at).getTime();
+        const ageMinutes = (currentTime - batchTime) / (1000 * 60);
+        return ageMinutes < 60; // Images created in the last hour
+      });
+      
+      if (recentBatches.length > 0) {
+        console.log(`[GenerationContext] Found ${recentBatches.length} recent image batches, checking if any skeletons can be removed`);
+        
+        // Remove skeleton generations - assume they've completed if we have recent images
+        // This is not perfect but works as a fallback until notifications are properly set up
+        state.skeletonGenerations.forEach(skeleton => {
+          const skeletonAge = (currentTime - skeleton.timestamp.getTime()) / (1000 * 60);
+          
+          // If skeleton is older than 4 minutes and we have recent images, assume it completed
+          // This balances responsiveness with safety since generations typically take 3-8 minutes
+          if (skeletonAge > 4) {
+            console.log(`[GenerationContext] Removing skeleton ${skeleton.id} (age: ${skeletonAge.toFixed(1)} min) due to recent image activity`);
+            dispatch({ type: 'REMOVE_SKELETON_GENERATION', payload: skeleton.id });
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[GenerationContext] Error checking for completed generations:', error);
+    }
+  };
 
   const startGeneration = async (preset: Preset, characterId: string, models: any[]): Promise<void> => {
     const skeletonId = `generation_${Date.now()}`;
