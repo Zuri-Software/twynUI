@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import AuthService from '../services/AuthService';
 import NotificationService from '../services/NotificationService';
+import { APIService } from '../services/APIService';
+import NotificationPermissionPopup from '../components/ui/NotificationPermissionPopup';
 import { AuthState, UserProfile } from '../types/auth.types';
 
 interface ProfileData {
@@ -35,8 +37,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [authState, setAuthState] = useState<AuthState>(AuthState.LOADING);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showNotificationPopup, setShowNotificationPopup] = useState(false);
 
   console.log('🔐 [AuthProvider] State - authState:', authState, 'user:', user ? 'exists' : 'null', 'isLoading:', isLoading);
+
+  // Check device token status
+  const checkDeviceTokenStatus = async () => {
+    try {
+      console.log('[AuthContext] 🔔 Checking device token status...');
+      const hasToken = await APIService.hasDeviceToken();
+      
+      if (!hasToken) {
+        console.log('[AuthContext] ⚠️ No device token found, showing permission popup');
+        setShowNotificationPopup(true);
+      } else {
+        console.log('[AuthContext] ✅ Device token exists, no popup needed');
+      }
+    } catch (error) {
+      console.error('[AuthContext] ❌ Error checking device token status:', error);
+      // Show popup on error to be safe
+      setShowNotificationPopup(true);
+    }
+  };
+
+  const handleNotificationPopupComplete = () => {
+    console.log('[AuthContext] Notification popup completed');
+    setShowNotificationPopup(false);
+  };
 
   useEffect(() => {
     console.log('🔐 [AuthProvider] Setting up auth initialization and subscription');
@@ -58,18 +85,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(newUser || null);
       setIsLoading(newState === AuthState.LOADING);
       
-      // Initialize notifications when user is authenticated
+      // Check device token when user is authenticated
       if (newState === AuthState.AUTHENTICATED && newUser) {
-        console.log('[AuthContext] ✅ User authenticated, initializing notifications...');
-        NotificationService.initialize().then(success => {
-          if (success) {
-            console.log('[AuthContext] ✅ Notifications initialized successfully');
-          } else {
-            console.log('[AuthContext] ⚠️ Notification initialization failed');
-          }
-        }).catch(error => {
-          console.error('[AuthContext] ❌ Notification initialization error:', error);
-        });
+        console.log('[AuthContext] ✅ User authenticated, checking device token...');
+        checkDeviceTokenStatus();
       }
     });
 
@@ -176,6 +195,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return (
     <AuthContext.Provider value={contextValue}>
       {children}
+      
+      {/* Device Token Permission Popup */}
+      <NotificationPermissionPopup
+        visible={showNotificationPopup}
+        onComplete={handleNotificationPopupComplete}
+      />
     </AuthContext.Provider>
   );
 }

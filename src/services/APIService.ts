@@ -283,6 +283,19 @@ class APIServiceClass {
     }
   }
 
+  public async hasDeviceToken(): Promise<boolean> {
+    try {
+      const response = await this.get('/users/device-token-status');
+      const hasToken = response.data?.hasDeviceToken || false;
+      console.log('[🔔 APIService] Device token status:', hasToken);
+      return hasToken;
+    } catch (error) {
+      console.error('[🔔 APIService] ❌ Failed to check device token status:', error);
+      // Return false if we can't check, so the popup will show (better safe than sorry)
+      return false;
+    }
+  }
+
   // Supabase Presets API (direct to Supabase, no auth required)
   public async fetchPresets(): Promise<Array<{
     id: string;
