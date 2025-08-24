@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 import { AuthState, getAuthErrorMessage } from '../../types/auth.types';
+import { COMPONENT_RADIUS } from '../../styles/borderRadius';
 
 interface OTPVerificationScreenProps {
   phoneNumber: string;
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
   },
   otpInput: {
     backgroundColor: 'rgba(128, 128, 128, 0.1)',
-    borderRadius: 12,
+    borderRadius: COMPONENT_RADIUS.input,
     padding: 16,
     fontSize: 20,
     fontWeight: '600',
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#cccccc',
     paddingVertical: 16,
     paddingHorizontal: 32,
-    borderRadius: 12,
+    borderRadius: COMPONENT_RADIUS.button,
     width: '100%',
     justifyContent: 'center',
   },

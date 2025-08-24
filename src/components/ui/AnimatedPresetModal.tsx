@@ -13,7 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useTraining } from '../../context/TrainingContext';
-import { useSelectedModel } from '../../context/SelectedModelContext';
+import { useAppState } from '../../context/AppStateContext';
 import { useGeneration } from '../../context/GenerationContext';
 import { useGallery } from '../../context/GalleryContext';
 import { Preset } from '../../types/preset.types';
@@ -55,13 +55,13 @@ export default function AnimatedPresetModal({
   // Context hooks
   const { isFavorited, toggleFavorite } = useFavorites();
   const { models, skeletonModels } = useTraining();
-  const { selectedModelId, setSelectedModelId } = useSelectedModel();
+  const { selectedLoraId, selectLoRA } = useAppState();
   const { startGeneration } = useGeneration();
   const { addPendingGeneration } = useGallery();
 
   // Computed values
   const allModels = [...models, ...skeletonModels];
-  const selectedModel = allModels.find(m => m.id === selectedModelId);
+  const selectedModel = allModels.find(m => m.id === selectedLoraId);
   const hasMultipleModels = allModels.length > 1;
   const hasModels = allModels.length > 0;
 
@@ -223,7 +223,7 @@ export default function AnimatedPresetModal({
 
   // Handle generate
   const handleGenerate = async () => {
-    if (!preset || !selectedModelId || !hasModels) return;
+    if (!preset || !selectedLoraId || !hasModels) return;
 
     try {
       setIsGenerating(true);
@@ -233,7 +233,7 @@ export default function AnimatedPresetModal({
         image_url: preset.image_url
       });
 
-      await startGeneration(preset, selectedModelId, allModels);
+      await startGeneration(preset, selectedLoraId, allModels);
       
       handleClose();
     } catch (error) {
@@ -252,7 +252,7 @@ export default function AnimatedPresetModal({
 
   // Handle model selection
   const handleModelSelect = (modelId: string) => {
-    setSelectedModelId(modelId);
+    selectLoRA(modelId);
     setShowDropdown(false);
   };
 
@@ -285,19 +285,19 @@ export default function AnimatedPresetModal({
 
   // Effect to load thumbnail when selected model changes
   useEffect(() => {
-    if (selectedModelId) {
+    if (selectedLoraId) {
       loadSelectedModelThumbnail();
     }
-  }, [selectedModelId]);
+  }, [selectedLoraId]);
 
   // Load thumbnail for the currently selected model
   const loadSelectedModelThumbnail = () => {
-    if (!selectedModelId) {
+    if (!selectedLoraId) {
       setSelectedModelThumbnail(undefined);
       return;
     }
 
-    const model = allModels.find(m => m.id === selectedModelId);
+    const model = allModels.find(m => m.id === selectedLoraId);
     if (!model) {
       setSelectedModelThumbnail(undefined);
       return;
@@ -449,8 +449,8 @@ export default function AnimatedPresetModal({
                   >
                     {allModels
                       .sort((a, b) => {
-                        if (a.id === selectedModelId) return -1;
-                        if (b.id === selectedModelId) return 1;
+                        if (a.id === selectedLoraId) return -1;
+                        if (b.id === selectedLoraId) return 1;
                         return 0;
                       })
                       .map((model, index) => (
@@ -464,7 +464,7 @@ export default function AnimatedPresetModal({
                         onPress={() => handleModelSelect(model.id)}
                       >
                         <Text style={styles.dropdownItemText} numberOfLines={1}>{model.name}</Text>
-                        {selectedModelId === model.id && (
+                        {selectedLoraId === model.id && (
                           <Text style={styles.checkmark}>✓</Text>
                         )}
                       </TouchableOpacity>

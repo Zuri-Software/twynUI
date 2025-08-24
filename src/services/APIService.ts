@@ -122,6 +122,15 @@ class APIServiceClass {
     }
   }
 
+  public async patch<T>(endpoint: string, data?: any): Promise<T> {
+    try {
+      const response = await this.axiosInstance.patch<T>(endpoint, data);
+      return response.data;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
   public async delete<T>(endpoint: string): Promise<T> {
     try {
       const response = await this.axiosInstance.delete<T>(endpoint);
@@ -418,17 +427,161 @@ class APIServiceClass {
     }
   }
 
-  // Delete a model
+  // Delete a model using direct Supabase API call
   async deleteModel(modelId: string): Promise<void> {
     try {
-      console.log('[🗑️ APIService] Deleting model:', modelId);
+      console.log('[🗑️ APIService] Deleting model via Supabase:', modelId);
       
-      await this.delete(`/models/${modelId}`);
+      // Get user auth token for Supabase RLS
+      const authToken = await AuthService.getAccessToken();
+      if (!authToken) {
+        throw new Error('Authentication required');
+      }
       
-      console.log('[🗑️ APIService] ✅ Model deleted successfully:', modelId);
+      // Direct Supabase REST API call to delete model
+      const supabaseUrl = `${SUPABASE_CONFIG.url}/rest/v1/models?id=eq.${modelId}`;
+      
+      const response = await axios.delete(supabaseUrl, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'apikey': SUPABASE_CONFIG.apiKey,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        }
+      });
+      
+      if (response.status === 204 || response.status === 200) {
+        console.log('[🗑️ APIService] ✅ Model deleted successfully via Supabase:', modelId);
+        
+        // Update user model count after successful deletion
+        await this.updateUserModelCount(-1);
+        
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
+      }
+      
     } catch (error: any) {
-      console.error('[🗑️ APIService] ❌ Failed to delete model:', error);
+      console.error('[🗑️ APIService] ❌ Failed to delete model via Supabase:', error);
+      
+      // If the direct Supabase approach fails, log the error details
+      if (error.response) {
+        console.error('[🗑️ APIService] Response status:', error.response.status);
+        console.error('[🗑️ APIService] Response data:', error.response.data);
+      }
+      
       throw this.handleError(error);
+    }
+  }
+
+  // Rename a model using direct Supabase API call
+  async renameModel(modelId: string, newName: string): Promise<void> {
+    try {
+      console.log('[✏️ APIService] Renaming model via Supabase:', modelId, 'to:', newName);
+      
+      // Get user auth token for Supabase RLS
+      const authToken = await AuthService.getAccessToken();
+      if (!authToken) {
+        throw new Error('Authentication required');
+      }
+      
+      // Direct Supabase REST API call to update model name
+      const supabaseUrl = `${SUPABASE_CONFIG.url}/rest/v1/models?id=eq.${modelId}`;
+      
+      const response = await axios.patch(supabaseUrl, 
+        { name: newName },
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'apikey': SUPABASE_CONFIG.apiKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          }
+        }
+      );
+      
+      if (response.status === 204 || response.status === 200) {
+        console.log('[✏️ APIService] ✅ Model renamed successfully via Supabase:', modelId);
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
+      }
+      
+    } catch (error: any) {
+      console.error('[✏️ APIService] ❌ Failed to rename model via Supabase:', error);
+      
+      // If the direct Supabase approach fails, log the error details
+      if (error.response) {
+        console.error('[✏️ APIService] Response status:', error.response.status);
+        console.error('[✏️ APIService] Response data:', error.response.data);
+      }
+      
+      throw this.handleError(error);
+    }
+  }
+
+  // Update user model count in Supabase users table
+  private async updateUserModelCount(deltaCount: number): Promise<void> {
+    try {
+      console.log('[👤 APIService] Updating user model count by:', deltaCount);
+      
+      const authToken = await AuthService.getAccessToken();
+      if (!authToken) {
+        throw new Error('Authentication required');
+      }
+
+      // Get current user ID from AuthService (it should decode the JWT)
+      const userId = await AuthService.getCurrentUserId();
+      if (!userId) {
+        console.warn('[👤 APIService] Could not get current user ID for model count update');
+        return;
+      }
+
+      // First get current model count
+      const currentUserResponse = await axios.get(
+        `${SUPABASE_CONFIG.url}/rest/v1/users?id=eq.${userId}&select=model_count`,
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'apikey': SUPABASE_CONFIG.apiKey,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!currentUserResponse.data || currentUserResponse.data.length === 0) {
+        console.warn('[👤 APIService] Could not find user record for model count update');
+        return;
+      }
+
+      const currentCount = currentUserResponse.data[0].model_count || 0;
+      const newCount = Math.max(0, currentCount + deltaCount); // Ensure it doesn't go negative
+
+      // Update the user model count
+      const updateResponse = await axios.patch(
+        `${SUPABASE_CONFIG.url}/rest/v1/users?id=eq.${userId}`,
+        { model_count: newCount },
+        {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'apikey': SUPABASE_CONFIG.apiKey,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+          }
+        }
+      );
+
+      if (updateResponse.status === 200 || updateResponse.status === 204) {
+        console.log('[👤 APIService] ✅ User model count updated:', currentCount, '→', newCount);
+      } else {
+        console.warn('[👤 APIService] ⚠️ User model count update returned unexpected status:', updateResponse.status);
+      }
+
+    } catch (error: any) {
+      console.error('[👤 APIService] ❌ Failed to update user model count:', error);
+      if (error.response) {
+        console.error('[👤 APIService] Response status:', error.response.status);
+        console.error('[👤 APIService] Response data:', error.response.data);
+      }
+      // Don't throw - this is a secondary operation that shouldn't fail the main delete
     }
   }
 }

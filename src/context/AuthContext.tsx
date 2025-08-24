@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import AuthService from '../services/AuthService';
+import NotificationService from '../services/NotificationService';
 import { AuthState, UserProfile } from '../types/auth.types';
 
 interface ProfileData {
@@ -19,6 +20,7 @@ interface AuthContextType {
   getAuthHeader: () => Promise<string | null>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
+  initializeNotifications: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -55,6 +57,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAuthState(newState);
       setUser(newUser || null);
       setIsLoading(newState === AuthState.LOADING);
+      
+      // Initialize notifications when user is authenticated
+      if (newState === AuthState.AUTHENTICATED && newUser) {
+        console.log('[AuthContext] ✅ User authenticated, initializing notifications...');
+        NotificationService.initialize().then(success => {
+          if (success) {
+            console.log('[AuthContext] ✅ Notifications initialized successfully');
+          } else {
+            console.log('[AuthContext] ⚠️ Notification initialization failed');
+          }
+        }).catch(error => {
+          console.error('[AuthContext] ❌ Notification initialization error:', error);
+        });
+      }
     });
 
     initializeAuth();
@@ -127,6 +143,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const initializeNotifications = async (): Promise<boolean> => {
+    try {
+      console.log('[AuthContext] Manual notification initialization requested');
+      const success = await NotificationService.initialize();
+      if (success) {
+        console.log('[AuthContext] ✅ Manual notification initialization successful');
+      } else {
+        console.log('[AuthContext] ⚠️ Manual notification initialization failed');
+      }
+      return success;
+    } catch (error) {
+      console.error('[AuthContext] ❌ Manual notification initialization error:', error);
+      return false;
+    }
+  };
+
   const contextValue: AuthContextType = {
     authState,
     user,
@@ -138,6 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     getAuthHeader,
     logout,
     refreshToken,
+    initializeNotifications,
   };
 
   return (

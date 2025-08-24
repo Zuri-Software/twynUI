@@ -14,7 +14,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Image } from 'expo-image';
 import { useFavorites } from '../../context/FavoritesContext';
 import { useTraining } from '../../context/TrainingContext';
-import { useSelectedModel } from '../../context/SelectedModelContext';
+import { useAppState } from '../../context/AppStateContext';
 import { useGeneration } from '../../context/GenerationContext';
 import { useGallery } from '../../context/GalleryContext';
 import { Preset } from '../../types/preset.types';
@@ -46,7 +46,7 @@ export default function PresetDetailScreen() {
 
   const { isFavorited, toggleFavorite } = useFavorites();
   const { models, skeletonModels } = useTraining();
-  const { selectedModelId, setSelectedModelId } = useSelectedModel();
+  const { selectedLoraId, selectLoRA } = useAppState();
   const { startGeneration } = useGeneration();
   const { addPendingGeneration } = useGallery();
 
@@ -64,12 +64,12 @@ export default function PresetDetailScreen() {
   useEffect(() => {
     console.log('[🎯 PresetDetailScreen] onAppear - models count:', models.length + skeletonModels.length);
     console.log('[🎯 PresetDetailScreen] onAppear - characterId passed:', characterId || 'nil');
-    console.log('[🎯 PresetDetailScreen] onAppear - globalSelectedModelId:', selectedModelId || 'nil');
+    console.log('[🎯 PresetDetailScreen] onAppear - globalSelectedModelId:', selectedLoraId || 'nil');
     console.log('[🎯 PresetDetailScreen] Preset image URL:', preset.image_url);
     
     // Priority: passed characterId > global selected model > first available
     const allModels = [...models, ...skeletonModels];
-    const initialCharacterId = characterId || selectedModelId || allModels[0]?.id;
+    const initialCharacterId = characterId || selectedLoraId || allModels[0]?.id;
     setSelectedCharacterId(initialCharacterId);
     
     console.log('[🎯 PresetDetailScreen] onAppear - selectedCharacterId set to:', initialCharacterId || 'nil');
@@ -80,7 +80,7 @@ export default function PresetDetailScreen() {
     // Simplified - no delay for debugging
     setShowImage(true);
     fadeAnim.setValue(1);
-  }, [models, skeletonModels, characterId, selectedModelId]);
+  }, [models, skeletonModels, characterId, selectedLoraId]);
 
   // Update thumbnail when selected model changes
   useEffect(() => {
@@ -165,7 +165,7 @@ export default function PresetDetailScreen() {
 
   const handleModelSelect = (modelId: string) => {
     setSelectedCharacterId(modelId);
-    setSelectedModelId(modelId); // Update global state
+    selectLoRA(modelId); // Update global state
     setShowDropdown(false);
     console.log('[🎯 PresetDetailScreen] Model selected in dropdown:', modelId);
   };

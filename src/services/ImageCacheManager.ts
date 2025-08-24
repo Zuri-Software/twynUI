@@ -6,6 +6,7 @@ enum CachePriority {
   LOW = 'low',
   NORMAL = 'normal',
   HIGH = 'high',
+  CRITICAL = 'critical',
 }
 
 interface CacheEntry {
@@ -13,6 +14,7 @@ interface CacheEntry {
   localPath: string;
   priority: CachePriority;
   lastAccessed: number;
+  cachedAt: number;
   size: number;
 }
 
@@ -22,10 +24,14 @@ class ImageCacheManager {
   private readonly maxCacheSize: number = 100 * 1024 * 1024; // 100MB max cache size
   private readonly maxCacheEntries: number = 200; // Max 200 cached images
   private readonly cacheMetadataKey = 'image_cache_metadata';
+  private memoryWarningListener: (() => void) | null = null;
+  private lastCleanupTime: number = 0;
+  private isCleaningUp: boolean = false;
 
   private constructor() {
     this.cacheDirectory = `${FileSystem.cacheDirectory}images/`;
     this.initializeCacheDirectory();
+    this.setupMemoryPressureHandling();
   }
 
   public static getInstance(): ImageCacheManager {
@@ -47,6 +53,113 @@ class ImageCacheManager {
       }
     } catch (error) {
       console.error('[ImageCacheManager] ❌ Failed to create cache directory:', error);
+    }
+  }
+
+  /**
+   * Setup memory pressure handling
+   */
+  private setupMemoryPressureHandling(): void {
+    // React Native doesn't have direct memory pressure events,
+    // but we can implement our own memory management
+    this.memoryWarningListener = () => {
+      console.log('[ImageCacheManager] 🚨 Memory pressure detected, cleaning cache');
+      this.handleMemoryPressure();
+    };
+
+    // Periodic cleanup every 10 minutes
+    setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastCleanup = now - this.lastCleanupTime;
+      
+      // Only run cleanup if it's been more than 10 minutes
+      if (timeSinceLastCleanup > 10 * 60 * 1000 && !this.isCleaningUp) {
+        this.performMaintenanceCleanup();
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+  }
+
+  /**
+   * Handle memory pressure by aggressively cleaning cache
+   */
+  private async handleMemoryPressure(): Promise<void> {
+    if (this.isCleaningUp) return;
+
+    console.log('[ImageCacheManager] 🧹 Handling memory pressure...');
+    
+    try {
+      this.isCleaningUp = true;
+
+      // Clear expo-image memory cache first
+      await Image.clearMemoryCache();
+      
+      // Get current cache stats
+      const stats = await this.getCacheStats();
+      
+      if (stats.totalSize > 50 * 1024 * 1024) { // If cache > 50MB
+        console.log('[ImageCacheManager] Cache size too large, aggressive cleanup needed');
+        
+        // Keep only critical priority images
+        const metadata = await this.getCacheMetadata();
+        const entries = Object.values(metadata);
+        const criticalEntries = entries.filter(entry => entry.priority === CachePriority.CRITICAL);
+        const nonCriticalEntries = entries.filter(entry => entry.priority !== CachePriority.CRITICAL);
+        
+        // Delete 80% of non-critical images
+        const toDelete = nonCriticalEntries.slice(0, Math.floor(nonCriticalEntries.length * 0.8));
+        
+        for (const entry of toDelete) {
+          try {
+            await FileSystem.deleteAsync(entry.localPath);
+            delete metadata[entry.url];
+          } catch (error) {
+            // File might not exist, continue
+          }
+        }
+        
+        // Update metadata with remaining entries
+        const remainingMetadata: Record<string, CacheEntry> = {};
+        for (const entry of criticalEntries) {
+          remainingMetadata[entry.url] = entry;
+        }
+        for (const entry of nonCriticalEntries.slice(Math.floor(nonCriticalEntries.length * 0.8))) {
+          remainingMetadata[entry.url] = entry;
+        }
+        
+        await AsyncStorage.setItem(this.cacheMetadataKey, JSON.stringify(remainingMetadata));
+        console.log(`[ImageCacheManager] ✅ Memory pressure cleanup: deleted ${toDelete.length} images`);
+      }
+
+      this.lastCleanupTime = Date.now();
+    } catch (error) {
+      console.error('[ImageCacheManager] ❌ Memory pressure cleanup failed:', error);
+    } finally {
+      this.isCleaningUp = false;
+    }
+  }
+
+  /**
+   * Perform regular maintenance cleanup
+   */
+  private async performMaintenanceCleanup(): Promise<void> {
+    if (this.isCleaningUp) return;
+    
+    try {
+      this.isCleaningUp = true;
+      console.log('[ImageCacheManager] 🔧 Performing maintenance cleanup...');
+
+      const stats = await this.getCacheStats();
+      
+      // Only cleanup if we're above 70% of max capacity
+      if (stats.totalSize > this.maxCacheSize * 0.7 || stats.entryCount > this.maxCacheEntries * 0.7) {
+        await this.cleanupCache();
+      }
+
+      this.lastCleanupTime = Date.now();
+    } catch (error) {
+      console.error('[ImageCacheManager] ❌ Maintenance cleanup failed:', error);
+    } finally {
+      this.isCleaningUp = false;
     }
   }
 
@@ -85,12 +198,14 @@ class ImageCacheManager {
    */
   private getPreloadLimit(priority: CachePriority): number {
     switch (priority) {
+      case CachePriority.CRITICAL:
+        return 500; // Unlimited for critical images
       case CachePriority.HIGH:
-        return 200; // Preload more images for high priority in dev
+        return 200; // Preload more images for high priority
       case CachePriority.NORMAL:
-        return 100; // Preload more images for normal priority in dev
+        return 100; // Standard preload limit
       case CachePriority.LOW:
-        return 50; // Preload more images for low priority in dev
+        return 50; // Limited preload for low priority
       default:
         return 100;
     }
@@ -114,6 +229,7 @@ class ImageCacheManager {
           localPath,
           priority,
           lastAccessed: now,
+          cachedAt: now,
           size: 0, // Will be updated when we get actual size
         };
       }
@@ -230,37 +346,67 @@ class ImageCacheManager {
       
       // If cache is too large or has too many entries, clean up
       if (stats.totalSize > this.maxCacheSize || stats.entryCount > this.maxCacheEntries) {
-        // Sort by last accessed (oldest first)
-        const sortedEntries = stats.entries.sort((a, b) => a.lastAccessed - b.lastAccessed);
+        // Sort by priority and last accessed (protect critical images)
+        const sortedEntries = stats.entries.sort((a, b) => {
+          // Critical priority images have lowest priority for deletion
+          if (a.priority === CachePriority.CRITICAL && b.priority !== CachePriority.CRITICAL) return 1;
+          if (a.priority !== CachePriority.CRITICAL && b.priority === CachePriority.CRITICAL) return -1;
+          
+          // For same priority, sort by last accessed (oldest first)
+          return a.lastAccessed - b.lastAccessed;
+        });
         
-        // Remove oldest entries until we're under limits
+        // Remove oldest entries until we're under limits (but preserve critical)
         const entriesToRemove = Math.max(
           stats.entryCount - this.maxCacheEntries,
           Math.ceil(stats.entries.length * 0.2) // Remove at least 20%
         );
 
-        for (let i = 0; i < entriesToRemove && i < sortedEntries.length; i++) {
+        let removedCount = 0;
+        const metadata = await this.getCacheMetadata();
+
+        for (let i = 0; i < sortedEntries.length && removedCount < entriesToRemove; i++) {
           const entry = sortedEntries[i];
+          
+          // Skip critical priority images unless we're really out of space
+          if (entry.priority === CachePriority.CRITICAL && removedCount < entriesToRemove * 0.8) {
+            continue;
+          }
+          
           try {
             await FileSystem.deleteAsync(entry.localPath);
-            console.log(`[ImageCacheManager] 🗑️ Removed cached image: ${entry.url}`);
+            delete metadata[entry.url];
+            removedCount++;
+            console.log(`[ImageCacheManager] 🗑️ Removed cached image: ${entry.url.substring(0, 50)}...`);
           } catch (error) {
             // File might not exist, continue
           }
         }
 
-        // Update metadata
-        const remainingEntries = sortedEntries.slice(entriesToRemove);
-        const newMetadata: Record<string, CacheEntry> = {};
-        for (const entry of remainingEntries) {
-          newMetadata[entry.url] = entry;
-        }
-
-        await AsyncStorage.setItem(this.cacheMetadataKey, JSON.stringify(newMetadata));
-        console.log(`[ImageCacheManager] ✅ Cleaned up ${entriesToRemove} cache entries`);
+        await AsyncStorage.setItem(this.cacheMetadataKey, JSON.stringify(metadata));
+        console.log(`[ImageCacheManager] ✅ Cleaned up ${removedCount} cache entries`);
       }
     } catch (error) {
       console.error('[ImageCacheManager] ❌ Failed to cleanup cache:', error);
+    }
+  }
+
+  /**
+   * Manually trigger memory optimization (for app state changes)
+   */
+  public async optimizeMemoryUsage(): Promise<void> {
+    console.log('[ImageCacheManager] 🎯 Optimizing memory usage...');
+    
+    try {
+      // Clear memory cache first
+      await Image.clearMemoryCache();
+      
+      // Perform maintenance cleanup
+      await this.performMaintenanceCleanup();
+      
+      console.log('[ImageCacheManager] ✅ Memory optimization complete');
+    } catch (error) {
+      console.error('[ImageCacheManager] ❌ Memory optimization failed:', error);
     }
   }
 
@@ -276,6 +422,55 @@ class ImageCacheManager {
     } catch (error) {
       console.error(`[ImageCacheManager] ❌ Failed to prefetch image: ${url}`, error);
       return false;
+    }
+  }
+
+  /**
+   * Prefetch critical images (like currently selected model thumbnails)
+   * These images get highest priority and are always cached
+   */
+  public async prefetchCritical(urls: string[]): Promise<void> {
+    console.log(`[ImageCacheManager] 🚨 Prefetching ${urls.length} CRITICAL images`);
+    await this.preloadImages(urls, CachePriority.CRITICAL);
+  }
+
+  /**
+   * Check if image is likely cached (based on metadata)
+   * Note: This doesn't guarantee the file exists on disk
+   */
+  public async isImageCached(url: string): Promise<boolean> {
+    try {
+      const metadata = await this.getCacheMetadata();
+      return url in metadata;
+    } catch (error) {
+      console.error('[ImageCacheManager] ❌ Failed to check cache status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get cached image path if it exists
+   */
+  public async getCachedImagePath(url: string): Promise<string | null> {
+    try {
+      const metadata = await this.getCacheMetadata();
+      const entry = metadata[url];
+      
+      if (entry) {
+        // Check if file actually exists
+        const fileInfo = await FileSystem.getInfoAsync(entry.localPath);
+        if (fileInfo.exists) {
+          // Update last accessed time
+          entry.lastAccessed = Date.now();
+          await AsyncStorage.setItem(this.cacheMetadataKey, JSON.stringify(metadata));
+          return entry.localPath;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ImageCacheManager] ❌ Failed to get cached image path:', error);
+      return null;
     }
   }
 }

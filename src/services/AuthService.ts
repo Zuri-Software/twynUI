@@ -100,6 +100,25 @@ class AuthService {
     }
   }
 
+  public async getCurrentUserId(): Promise<string | null> {
+    if (this.currentUser?.id) {
+      return this.currentUser.id;
+    }
+    
+    // Try to get from stored user profile
+    try {
+      const storedProfile = await SecureStore.getItemAsync(AuthService.USER_PROFILE_KEY);
+      if (storedProfile) {
+        const user: UserProfile = JSON.parse(storedProfile);
+        return user.id;
+      }
+    } catch (error) {
+      console.error('[AuthService] Error getting stored user profile:', error);
+    }
+    
+    return null;
+  }
+
   private async getRefreshToken(): Promise<string | null> {
     try {
       return await SecureStore.getItemAsync(AuthService.REFRESH_TOKEN_KEY);

@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { Image } from 'expo-image';
+import CachedImage from './CachedImage';
+import { CachePriority } from '../../services/ImageCacheManager';
 import { Preset } from '../../types/preset.types';
 import { useFavorites } from '../../context/FavoritesContext';
 
@@ -40,12 +41,14 @@ export default function PresetCard({ preset, onPress, width }: PresetCardProps) 
     >
       <View style={[styles.card, { height: cardHeight }]}>
         {!hasError ? (
-          <Image
-            source={{ uri: preset.image_url }}
+          <CachedImage
+            uri={preset.image_url}
             style={styles.image}
             contentFit="cover"
+            priority={CachePriority.NORMAL}
             placeholder="L6PZfSi_.AyE_3t7t7R**0o#DgR4"
             transition={200}
+            fallbackText="Preset image"
             onError={() => setHasError(true)}
           />
         ) : (
@@ -103,10 +106,11 @@ export function AdaptivePresetCard({
     <TouchableOpacity onPress={() => onPress(preset)} activeOpacity={0.9}>
       <View style={styles.adaptiveCard}>
         {!hasError ? (
-          <Image
-            source={{ uri: preset.image_url }}
+          <CachedImage
+            uri={preset.image_url}
             style={[styles.adaptiveImage, { aspectRatio }]}
             contentFit="contain"
+            priority={CachePriority.NORMAL}
             placeholder="L6PZfSi_.AyE_3t7t7R**0o#DgR4"
             transition={200}
             onLoad={handleImageLoad}

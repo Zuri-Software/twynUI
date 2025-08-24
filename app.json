@@ -41,6 +41,14 @@
           "photosPermission": "This app needs access to your photo library to select photos for AI model training and image generation.",
           "cameraPermission": "This app needs access to your camera to take photos for AI model training."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FE6EFD",
+          "sounds": ["./assets/sounds/notification.wav"]
+        }
       ]
     ],
     "extra": {

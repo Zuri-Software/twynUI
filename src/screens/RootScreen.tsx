@@ -6,7 +6,9 @@ import { FavoritesProvider } from '../context/FavoritesContext';
 import { GalleryProvider } from '../context/GalleryContext';
 import { GenerationProvider } from '../context/GenerationContext';
 import { TrainingProvider } from '../context/TrainingContext';
-import { SelectedModelProvider } from '../context/SelectedModelContext';
+import { AppStateProvider } from '../context/AppStateContext';
+import ErrorBoundary from '../components/ui/ErrorBoundary';
+import { Loading, LoadingType } from '../components/ui/LoadingStates';
 import { AuthState } from '../types/auth.types';
 import AuthFlowScreen from './auth/AuthFlowScreen';
 import AppNavigator from '../navigation/AppNavigator';
@@ -38,7 +40,12 @@ function AppContent() {
     console.log('[RootScreen] 🔄 Still loading, showing spinner');
     return (
       <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <Loading
+          type={LoadingType.PULSE}
+          message="Loading your experience..."
+          size="large"
+          color="#007AFF"
+        />
       </SafeAreaView>
     );
   }
@@ -62,19 +69,39 @@ function AppContent() {
     console.log('[RootScreen] ✅ User authenticated and onboarding completed, rendering main app');
     console.log('[RootScreen] ✅ Rendering full app with context providers');
     
-    // Full app with proper context stack
+    // Full app with proper context stack and error boundaries
     return (
-      <SelectedModelProvider>
-        <FavoritesProvider>
-          <TrainingProvider>
-            <GenerationProvider>
-              <GalleryProvider>
-                <AppNavigator key={`nav-${authState}-${user?.id || 'none'}`} />
-              </GalleryProvider>
-            </GenerationProvider>
-          </TrainingProvider>
-        </FavoritesProvider>
-      </SelectedModelProvider>
+      <ErrorBoundary
+        onError={(error, errorInfo) => {
+          console.error('❌ [RootScreen] App state error:', error);
+          // TODO: Handle app state specific errors
+        }}
+      >
+        <AppStateProvider>
+          <ErrorBoundary
+            onError={(error, errorInfo) => {
+              console.error('❌ [RootScreen] Context providers error:', error);
+            }}
+          >
+            <FavoritesProvider>
+              <TrainingProvider>
+                <GenerationProvider>
+                  <GalleryProvider>
+                    <ErrorBoundary
+                      onError={(error, errorInfo) => {
+                        console.error('❌ [RootScreen] Navigation error:', error);
+                        // TODO: Handle navigation specific errors
+                      }}
+                    >
+                      <AppNavigator key={`nav-${authState}-${user?.id || 'none'}`} />
+                    </ErrorBoundary>
+                  </GalleryProvider>
+                </GenerationProvider>
+              </TrainingProvider>
+            </FavoritesProvider>
+          </ErrorBoundary>
+        </AppStateProvider>
+      </ErrorBoundary>
     );
   }
 
@@ -97,8 +124,14 @@ function AppContent() {
   console.log('[RootScreen] ⚠️ Unexpected auth state:', authState, 'showing loading');
   return (
     <SafeAreaView style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#007AFF" />
-      <Text>Loading...</Text>
+      <Loading
+        type={LoadingType.DOTS}
+        message="Initializing..."
+        color="#007AFF"
+      />
+      <Text style={styles.debugText}>
+        Debug: Auth State = {authState}
+      </Text>
     </SafeAreaView>
   );
   } catch (error) {
@@ -115,21 +148,26 @@ function AppContent() {
 export default function RootScreen() {
   console.log('🏠 [RootScreen] Root component rendering');
   
-  try {
-    return (
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('❌ [RootScreen] Root error boundary caught:', error);
+        console.error('❌ [RootScreen] Error info:', errorInfo);
+        // TODO: Report to crash analytics service
+      }}
+    >
       <AuthProvider>
-        <AppContent />
+        <ErrorBoundary
+          onError={(error, errorInfo) => {
+            console.error('❌ [RootScreen] Auth context error:', error);
+            // TODO: Handle auth-specific errors
+          }}
+        >
+          <AppContent />
+        </ErrorBoundary>
       </AuthProvider>
-    );
-  } catch (error) {
-    console.error('❌ [RootScreen] Error in RootScreen:', error);
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'red' }}>
-        <Text style={{ color: 'white', fontSize: 20 }}>ERROR IN ROOT</Text>
-        <Text style={{ color: 'white', fontSize: 16 }}>{String(error)}</Text>
-      </View>
-    );
-  }
+    </ErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -138,5 +176,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#ffffff',
+  },
+  debugText: {
+    marginTop: 20,
+    fontSize: 12,
+    color: '#666666',
+    textAlign: 'center',
   },
 });

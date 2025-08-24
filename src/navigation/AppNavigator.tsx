@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
 import { HomeIcon, FavoritesIcon, GalleryIcon, TrainingIcon } from '../components/icons/TabIcons';
+import { CONTAINER_RADIUS } from '../styles/borderRadius';
 
 // Import screens
 import HomeScreen from '../screens/main/HomeScreen';
@@ -14,7 +15,7 @@ import TrainingScreen from '../screens/main/TrainingScreen';
 import PresetDetailScreen from '../screens/main/PresetDetailScreen';
 import { useGeneration } from '../context/GenerationContext';
 import { useTraining } from '../context/TrainingContext';
-import { useSelectedModel } from '../context/SelectedModelContext';
+import { useAppState } from '../context/AppStateContext';
 
 // Types
 export type RootTabParamList = {
@@ -70,7 +71,7 @@ function PresetDetailScreenWithGeneration(props: any) {
   
   const { startGeneration } = useGeneration();
   const { models } = useTraining();
-  const { selectedModelId } = useSelectedModel();
+  const { selectedLoraId, availableLoRAs } = useAppState();
 
   console.log('[🔍 AppNavigator] startGeneration available:', !!startGeneration);
 
@@ -93,8 +94,8 @@ function PresetDetailScreenWithGeneration(props: any) {
     }
   };
 
-  // Use global selected model or fall back to first model
-  const selectedCharacterId = selectedModelId || (models.length > 0 ? models[0].id : undefined);
+  // Use global selected model or fall back to first available model
+  const selectedCharacterId = selectedLoraId || (availableLoRAs.length > 0 ? availableLoRAs[0].id : undefined);
 
   console.log('[🔍 AppNavigator] Creating route params with onGenerateRequest:', !!handleGenerateRequest);
   console.log('[🔍 AppNavigator] Original route params:', props.route?.params);
@@ -150,7 +151,7 @@ function TrainingStackNavigator() {
 }
 
 // Custom Tab Bar (matching Swift design)
-function CustomTabBar({ state, descriptors, navigation }: any) {
+function CustomTabBar({ state, descriptors, navigation, selectedTab, onTabChange }: any) {
   const getTabIcon = (routeName: string, isFocused: boolean) => {
     const iconProps = {
       size: 24,
@@ -190,6 +191,10 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             });
 
             if (!isFocused && !event.defaultPrevented) {
+              // Call our custom tab change handler if provided
+              if (onTabChange) {
+                onTabChange(index);
+              }
               navigation.navigate(route.name);
             }
           };
@@ -258,18 +263,59 @@ function TrainingStackNavigatorWrapped() {
 function MainTabNavigator() {
   console.log('[MainTabNavigator] 📱 Rendering MainTabNavigator');
   
+  const { navigationResetTrigger } = useAppState();
+  const [selectedTab, setSelectedTab] = React.useState(0);
+  const [shouldResetOnSwitch, setShouldResetOnSwitch] = React.useState(false);
+  
+  // Listen for navigation reset triggers from AppState
+  React.useEffect(() => {
+    if (navigationResetTrigger) {
+      console.log('[MainTabNavigator] 🔄 Navigation reset triggered, preparing for reset');
+      setShouldResetOnSwitch(true);
+      // Switch to Home tab when LoRA changes
+      setSelectedTab(0);
+    }
+  }, [navigationResetTrigger]);
+  
+  // Handle tab change
+  const handleTabChange = (index: number) => {
+    if (index === 0 && shouldResetOnSwitch) {
+      console.log('[MainTabNavigator] 🏠 Switching to Home tab after model change - forcing reset');
+      setShouldResetOnSwitch(false);
+      // The key prop will force re-render
+    }
+    setSelectedTab(index);
+  };
+  
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(props) => <CustomTabBar {...props} selectedTab={selectedTab} onTabChange={handleTabChange} />}
       screenOptions={{
         headerShown: false,
       }}
       sceneContainerStyle={{ backgroundColor: 'transparent' }}
+      initialRouteName="Home"
     >
-      <Tab.Screen name="Home" component={HomeStackNavigatorWrapped} />
-      <Tab.Screen name="Favorites" component={FavoritesStackNavigatorWrapped} />
-      <Tab.Screen name="Gallery" component={GalleryStackNavigatorWrapped} />
-      <Tab.Screen name="Training" component={TrainingStackNavigatorWrapped} />
+      <Tab.Screen 
+        name="Home" 
+        component={HomeStackNavigatorWrapped} 
+        key={shouldResetOnSwitch ? `home-reset-${navigationResetTrigger}` : 'home'}
+      />
+      <Tab.Screen 
+        name="Favorites" 
+        component={FavoritesStackNavigatorWrapped} 
+        key={shouldResetOnSwitch ? `favorites-reset-${navigationResetTrigger}` : 'favorites'}
+      />
+      <Tab.Screen 
+        name="Gallery" 
+        component={GalleryStackNavigatorWrapped} 
+        key={shouldResetOnSwitch ? `gallery-reset-${navigationResetTrigger}` : 'gallery'}
+      />
+      <Tab.Screen 
+        name="Training" 
+        component={TrainingStackNavigatorWrapped} 
+        key={shouldResetOnSwitch ? `training-reset-${navigationResetTrigger}` : 'training'}
+      />
     </Tab.Navigator>
   );
 }
@@ -295,8 +341,7 @@ const styles = StyleSheet.create({
   screenWrapper: {
     flex: 1,
     backgroundColor: '#ffffff',   // White background for content
-    borderBottomLeftRadius: 32,   // Rounded bottom corners only
-    borderBottomRightRadius: 32,
+    ...CONTAINER_RADIUS.main,     // Rounded bottom corners only (matches SwiftUI UnevenRoundedRectangle)
     overflow: 'hidden',
     marginBottom: 90,             // Updated space for taller tab bar
   },

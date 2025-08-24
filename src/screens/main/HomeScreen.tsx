@@ -13,6 +13,7 @@ import { Preset, PresetCategory } from '../../types/preset.types';
 import { TYPOGRAPHY, TEXT_COLORS } from '../../styles/typography';
 import { COLORS } from '../../styles/colors';
 import FreePillButton from '../../components/ui/FreePillButton';
+import { BORDER_RADIUS } from '../../styles/borderRadius';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -335,7 +336,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS.small,
     borderWidth: 1,
     borderColor: 'rgba(128, 128, 128, 0.3)',
     shadowColor: COLORS.ui.shadow,

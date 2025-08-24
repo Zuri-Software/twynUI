@@ -5,6 +5,7 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ActivityIndicator,
   Alert,
   Dimensions 
@@ -15,11 +16,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { TrainingProvider, useTraining } from '../../context/TrainingContext';
 import { useAuth } from '../../context/AuthContext';
 // Force TypeScript refresh
-import { useSelectedModel } from '../../context/SelectedModelContext';
+import { useAppState } from '../../context/AppStateContext';
 import { useNavigation } from '@react-navigation/native';
 import ModelCard from '../../components/ui/ModelCard';
 import { TYPOGRAPHY, TEXT_COLORS } from '../../styles/typography';
 import { COLORS } from '../../styles/colors';
+import { BORDER_RADIUS, CONTAINER_RADIUS, COMPONENT_RADIUS } from '../../styles/borderRadius';
+import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -30,7 +33,7 @@ interface TrainingContentProps {
 function TrainingContent({}: TrainingContentProps) {
   const { logout, getAuthHeader } = useAuth();
   const navigation = useNavigation();
-  const { selectedModelId, setSelectedModelId } = useSelectedModel();
+  const { selectedLoraId, selectLoRA } = useAppState();
   // Get training context
   const { 
     models,
@@ -50,12 +53,13 @@ function TrainingContent({}: TrainingContentProps) {
 
   const handleModelTap = (modelId: string) => {
     if (isDeleteMode) {
-      // Exit delete mode when tapping a card
+      // Exit delete mode when tapping a card (like iOS)
+      console.log('[TrainingScreen] Exiting delete mode on card tap');
       setIsDeleteMode(false);
     } else {
       // Handle model selection with visual feedback
       console.log('[TrainingScreen] Model selected:', modelId);
-      setSelectedModelId(modelId);
+      selectLoRA(modelId);
       
       // Show brief visual feedback then navigate to Home tab
       setTimeout(() => {
@@ -66,7 +70,9 @@ function TrainingContent({}: TrainingContentProps) {
   };
 
   const handleModelLongPress = () => {
-    // Enter delete mode with haptic feedback
+    // Enter delete mode with haptic feedback (match iOS UX)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    console.log('[TrainingScreen] Entering delete mode via long press');
     setIsDeleteMode(true);
   };
 
@@ -412,14 +418,6 @@ function TrainingContent({}: TrainingContentProps) {
         </View>
       )}
 
-      {/* Delete mode overlay - tap outside to dismiss */}
-      {isDeleteMode && (
-        <TouchableOpacity 
-          style={styles.deleteOverlay}
-          onPress={() => setIsDeleteMode(false)}
-          activeOpacity={1}
-        />
-      )}
 
       {/* Main content area with white background */}
       <View style={styles.contentArea}>
@@ -428,6 +426,15 @@ function TrainingContent({}: TrainingContentProps) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          <TouchableWithoutFeedback 
+            onPress={() => {
+              if (isDeleteMode) {
+                console.log('[TrainingScreen] Exiting delete mode via background tap');
+                setIsDeleteMode(false);
+              }
+            }}
+          >
+            <View style={styles.scrollContentWrapper}>
           {/* Phone Mockups Section */}
           <View style={styles.phoneMockupsSection}>
             <View style={styles.mockupStack}>
@@ -513,7 +520,7 @@ function TrainingContent({}: TrainingContentProps) {
                         trainingImageCount: 0,
                         photoCount: 20 // Default for skeleton models
                       }}
-                      isSelected={selectedModelId === skeletonModel.id}
+                      isSelected={selectedLoraId === skeletonModel.id}
                       isDeleteMode={isDeleteMode}
                       onTap={() => handleModelTap(skeletonModel.id)}
                       onLongPress={handleModelLongPress}
@@ -532,7 +539,7 @@ function TrainingContent({}: TrainingContentProps) {
                         trainingImageCount: 0, // TODO: Get from API
                         photoCount: 20 // TODO: Get from API
                       }}
-                      isSelected={selectedModelId === model.id}
+                      isSelected={selectedLoraId === model.id}
                       isDeleteMode={isDeleteMode}
                       onTap={() => handleModelTap(model.id)}
                       onLongPress={handleModelLongPress}
@@ -555,6 +562,8 @@ function TrainingContent({}: TrainingContentProps) {
               </Text>
             </View>
           )}
+            </View>
+          </TouchableWithoutFeedback>
         </ScrollView>
       </View>
     </>
@@ -595,11 +604,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
     backgroundColor: '#ffffff',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    ...CONTAINER_RADIUS.main,
   },
   scrollContent: {
     paddingBottom: 120, // Space for tab bar
+  },
+  scrollContentWrapper: {
+    flex: 1,
+    minHeight: '100%', // Ensure it fills the ScrollView for tap detection
   },
   loadingContainer: {
     flex: 1,
@@ -641,7 +653,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.button.freeBg,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: COMPONENT_RADIUS.button,
   },
   freeButtonText: {
     ...TYPOGRAPHY.fatFrankCaption,
@@ -755,7 +767,7 @@ const styles = StyleSheet.create({
     margin: 16,
     padding: 16,
     backgroundColor: '#ffe6e6',
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS.small,
   },
   errorText: {
     color: '#d32f2f',
@@ -812,7 +824,7 @@ const styles = StyleSheet.create({
   trainingModal: {
     backgroundColor: 'rgba(0,0,0,0.8)',
     padding: 40,
-    borderRadius: 20,
+    borderRadius: BORDER_RADIUS.xlarge,
     alignItems: 'center',
   },
   trainingText: {
@@ -843,7 +855,7 @@ const styles = StyleSheet.create({
     top: 120, // Position below header
     right: 16,
     backgroundColor: '#ffffff',
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS.small,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -860,17 +872,7 @@ const styles = StyleSheet.create({
     color: '#dc3545', // Red color for logout
     fontWeight: '500',
   },
-  deleteOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 5, // Lower than model cards in delete mode
-    backgroundColor: 'transparent',
-  },
   modelsGridDeleteMode: {
-    zIndex: 1000, // Ensure model cards are above the overlay in delete mode
-    elevation: 1000, // For Android
+    // Removed overlay z-index management since we're not using blocking overlay
   },
 });

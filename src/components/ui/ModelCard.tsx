@@ -7,8 +7,11 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
+import CachedImage from './CachedImage';
+import { CachePriority } from '../../services/ImageCacheManager';
 import { TrainedModel } from '../../context/TrainingContext';
+import { COMPONENT_RADIUS } from '../../styles/borderRadius';
 
 interface ModelCardProps {
   model: TrainedModel;
@@ -31,10 +34,12 @@ export default function ModelCard({
 }: ModelCardProps) {
   const [showingDeleteAlert, setShowingDeleteAlert] = useState(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+  const deleteButtonScale = useRef(new Animated.Value(0)).current;
 
   // Shake animation for delete mode
   useEffect(() => {
     if (isDeleteMode) {
+      // Start shake animation
       const shakeAnimation = Animated.loop(
         Animated.sequence([
           Animated.timing(shakeAnim, {
@@ -49,16 +54,38 @@ export default function ModelCard({
           }),
         ])
       );
-      shakeAnimation.start();
-      return () => shakeAnimation.stop();
-    } else {
-      Animated.timing(shakeAnim, {
-        toValue: 0,
-        duration: 100,
+      
+      // Animate delete button in
+      const buttonAnimation = Animated.spring(deleteButtonScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
         useNativeDriver: true,
-      }).start();
+      });
+
+      shakeAnimation.start();
+      buttonAnimation.start();
+
+      return () => {
+        shakeAnimation.stop();
+      };
+    } else {
+      // Animate delete button out and stop shake
+      Animated.parallel([
+        Animated.spring(deleteButtonScale, {
+          toValue: 0,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
-  }, [isDeleteMode, shakeAnim]);
+  }, [isDeleteMode, shakeAnim, deleteButtonScale]);
 
   const handleRename = () => {
     if (!onRename) return;
@@ -105,6 +132,21 @@ export default function ModelCard({
     );
   };
 
+  const handleLongPress = () => {
+    // Add haptic feedback to match iOS UX
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onLongPress();
+  };
+
+  const handleCardPress = () => {
+    if (isDeleteMode) {
+      // In delete mode, let the parent handle the tap to exit delete mode
+      // Don't call onTap() to prevent model selection
+      return;
+    }
+    onTap();
+  };
+
   const animatedStyle = {
     transform: [{ translateX: shakeAnim }],
   };
@@ -116,23 +158,29 @@ export default function ModelCard({
           styles.card,
           isSelected && !isDeleteMode && styles.selectedCard,
         ]}
-        onPress={onTap}
-        onLongPress={onLongPress}
-        activeOpacity={0.9}
+        onPress={handleCardPress}
+        onLongPress={handleLongPress}
+        delayLongPress={300} // Match iOS 0.3 second delay
+        activeOpacity={isDeleteMode ? 1 : 0.9}
       >
         {/* Background Image */}
         <View style={styles.imageContainer}>
           {model.thumbnailURL ? (
-            <Image
-              source={{ uri: model.thumbnailURL }}
+            <CachedImage
+              uri={model.thumbnailURL}
               style={styles.backgroundImage}
               contentFit="cover"
+              priority={isSelected ? CachePriority.CRITICAL : CachePriority.HIGH}
               placeholder="L6PZfSi_.AyE_3t7t7R**0o#DgR4"
+              fallbackText="Model thumbnail"
+              onCacheHit={() => {
+                console.log('[ModelCard] 🚀 Cache HIT for model:', model.name);
+              }}
+              onCacheMiss={() => {
+                console.log('[ModelCard] ⏳ Cache MISS for model:', model.name);
+              }}
               onError={() => {
                 console.log('[ModelCard] ❌ Thumbnail failed to load for model:', model.name, 'URL:', model.thumbnailURL);
-              }}
-              onLoad={() => {
-                console.log('[ModelCard] ✅ Thumbnail loaded successfully for model:', model.name);
               }}
             />
           ) : (
@@ -161,15 +209,27 @@ export default function ModelCard({
         {/* Top right controls */}
         <View style={styles.topRightControls}>
           {/* Delete button (only in delete mode) */}
-          {isDeleteMode && onDelete && (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={handleDelete}
+          {onDelete && (
+            <Animated.View
+              style={[
+                styles.deleteButton,
+                {
+                  transform: [{ scale: deleteButtonScale }],
+                  opacity: deleteButtonScale,
+                }
+              ]}
+              pointerEvents={isDeleteMode ? 'auto' : 'none'}
             >
-              <View style={styles.deleteButtonBackground}>
-                <Text style={styles.deleteButtonText}>×</Text>
-              </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleDelete}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.deleteButtonTouchable}
+              >
+                <View style={styles.deleteButtonBackground}>
+                  <Text style={styles.deleteButtonText}>×</Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
           )}
 
           {/* Selection indicator (only when selected and not in delete mode) */}
@@ -192,7 +252,7 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: COMPONENT_RADIUS.modelCard,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
@@ -262,13 +322,19 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   deleteButton: {
-    marginBottom: 8,
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    zIndex: 1000,
+  },
+  deleteButtonTouchable: {
+    // Ensure good touch target
   },
   deleteButtonBackground: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(235, 235, 235, 0.95)', // Light grey background
+    backgroundColor: 'rgba(235, 235, 235, 0.95)', // Match Swift light grey
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -278,7 +344,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 1,
-    elevation: 2,
+    elevation: 8, // Ensure it's above everything
   },
   deleteButtonText: {
     fontSize: 14,
@@ -289,7 +355,7 @@ const styles = StyleSheet.create({
   selectionIndicator: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: COMPONENT_RADIUS.avatar / 2,
     backgroundColor: '#FE6EFD', // Pink background
     justifyContent: 'center',
     alignItems: 'center',

@@ -306,13 +306,30 @@ export const TrainingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const renameModel = async (id: string, name: string) => {
     try {
-      // TODO: Implement rename API call once backend endpoint is ready
-      // await APIService.renameModel(id, name);
-      console.log('Renaming model:', id, 'to:', name);
+      console.log('[TrainingContext] ✏️ Starting rename for model:', id, 'to:', name);
+      
+      // Call backend API to rename model in Supabase
+      await APIService.renameModel(id, name);
+      
+      console.log('[TrainingContext] ✅ Model renamed in backend, updating local state');
+      
+      // Update local state only after successful backend update
       dispatch({ type: 'RENAME_MODEL', payload: { id, name } });
-    } catch (error) {
-      console.error('Failed to rename model:', error);
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to rename model' });
+      
+    } catch (error: any) {
+      console.error('[TrainingContext] ❌ Failed to rename model:', error);
+      
+      // Show user-friendly error message
+      let errorMessage = 'Failed to rename model';
+      if (error.message?.includes('404')) {
+        errorMessage = 'Model not found';
+      } else if (error.message?.includes('403')) {
+        errorMessage = 'You do not have permission to rename this model';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
     }
   };
 
