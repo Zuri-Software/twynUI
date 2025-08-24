@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
+// import { BlurView } from 'expo-blur'; // Using standard View instead
 import NotificationService from '../../services/NotificationService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -54,8 +54,8 @@ export default function NotificationPermissionPopup({ visible, onComplete }: Not
       animationType="fade"
       onRequestClose={handleNotNow}
     >
-      {/* Blurred Background */}
-      <BlurView style={styles.overlay} intensity={20} tint="dark">
+      {/* Background with Blur Effect */}
+      <View style={styles.overlay}>
         <TouchableOpacity 
           style={styles.backdrop} 
           activeOpacity={1}
@@ -103,7 +103,7 @@ export default function NotificationPermissionPopup({ visible, onComplete }: Not
             </TouchableOpacity>
           </View>
         </View>
-      </BlurView>
+      </View>
     </Modal>
   );
 }
@@ -113,6 +113,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Dark overlay instead of blur
   },
   backdrop: {
     position: 'absolute',
