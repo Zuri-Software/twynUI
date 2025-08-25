@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '../../context/AuthContext';
 import NotificationService from '../../services/NotificationService';
+import { Logger } from '../../utils/Logger';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -28,23 +29,27 @@ export default function NotificationPermissionScreen({ onComplete }: Notificatio
     setIsRequestingPermission(true);
 
     try {
-      console.log('[NotificationPermission] Initializing notification service...');
+      Logger.info('🔔 User tapped "Enable Notifications"', 'NotificationPermission');
       
       // Use NotificationService to handle the full flow
       const success = await NotificationService.initialize();
       
       if (success) {
-        console.log('[NotificationPermission] ✅ Notifications setup successful');
-        console.log('[NotificationPermission] Device token:', NotificationService.getPushToken());
+        Logger.info('✅ Notifications setup successful', 'NotificationPermission', {
+          deviceToken: NotificationService.getPushToken()?.substring(0, 30) + '...'
+        });
       } else {
-        console.log('[NotificationPermission] ⚠️ Notification setup failed');
+        Logger.warn('⚠️ Notification setup failed', 'NotificationPermission');
       }
 
       // Complete onboarding regardless of permission status
       await completeOnboardingFlow();
       
     } catch (error: any) {
-      console.error('[NotificationPermission] Error setting up notifications:', error);
+      Logger.error('❌ Error setting up notifications', 'NotificationPermission', {
+        error: error.message,
+        stack: error.stack
+      });
       // Continue with onboarding even if setup fails
       await completeOnboardingFlow();
     } finally {

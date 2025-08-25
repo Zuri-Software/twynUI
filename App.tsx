@@ -4,9 +4,13 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import RootScreen from './src/screens/RootScreen';
+import { initializeLogger } from './src/utils/LoggerConfig';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+// Initialize enhanced logging
+initializeLogger();
 
 console.log('🚀 [App.tsx] App component is being loaded');
 

@@ -2,6 +2,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { APIService } from './APIService';
+import { Logger } from '../utils/Logger';
 
 // Simple event emitter for React Native
 class SimpleEventEmitter {
@@ -86,25 +87,25 @@ class NotificationService {
    * Initialize notification service and request permissions
    */
   public async initialize(): Promise<boolean> {
-    console.log('[NotificationService] 🚀 Initializing...');
+    Logger.notificationLog.info('🚀 Initializing notification service...');
 
     try {
       // Only run on physical devices
       if (!Device.isDevice) {
-        console.log('[NotificationService] ❌ Notifications only work on physical devices');
+        Logger.notificationLog.warn('❌ Notifications only work on physical devices');
         return false;
       }
 
-      console.log('[NotificationService] 📱 Running on physical device, proceeding...');
+      Logger.notificationLog.info('📱 Running on physical device, proceeding...');
 
       // Get existing permission status
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      console.log('[NotificationService] 🔍 Existing permission status:', existingStatus);
+      Logger.notificationLog.info('🔍 Existing permission status', { status: existingStatus });
       let finalStatus = existingStatus;
 
       // If not already granted, request permissions
       if (existingStatus !== 'granted') {
-        console.log('[NotificationService] 📋 Requesting permissions...');
+        Logger.notificationLog.info('📋 Requesting permissions...');
         const { status } = await Notifications.requestPermissionsAsync({
           ios: {
             allowAlert: true,
@@ -113,36 +114,42 @@ class NotificationService {
           },
         });
         finalStatus = status;
-        console.log('[NotificationService] 📋 Permission request result:', finalStatus);
+        Logger.notificationLog.info('📋 Permission request result', { status: finalStatus });
       }
 
       if (finalStatus !== 'granted') {
-        console.log('[NotificationService] ❌ Notification permission not granted, final status:', finalStatus);
+        Logger.notificationLog.error('❌ Notification permission not granted', { finalStatus });
         return false;
       }
 
-      console.log('[NotificationService] ✅ Permission granted, getting push token...');
+      Logger.notificationLog.info('✅ Permission granted, getting push token...');
 
       // Get the push token
       const tokenData = await Notifications.getExpoPushTokenAsync();
       
       this.expoPushToken = tokenData.data;
-      console.log('[NotificationService] 🎯 Push token obtained:', this.expoPushToken);
-      console.log('[NotificationService] 🎯 Token length:', this.expoPushToken?.length);
+      Logger.notificationLog.info('🎯 Push token obtained', { 
+        token: this.expoPushToken?.substring(0, 30) + '...', 
+        tokenLength: this.expoPushToken?.length,
+        fullToken: this.expoPushToken // Full token for debugging
+      });
 
       // Register token with backend
-      console.log('[NotificationService] 🌐 Starting token registration with backend...');
+      Logger.notificationLog.info('🌐 Starting token registration with backend...');
       await this.registerTokenWithBackend();
 
       // Set up notification listeners
-      console.log('[NotificationService] 👂 Setting up notification listeners...');
+      Logger.notificationLog.info('👂 Setting up notification listeners...');
       this.setupListeners();
 
-      console.log('[NotificationService] ✅ Initialization completed successfully!');
+      Logger.notificationLog.info('✅ Initialization completed successfully!');
       return true;
-    } catch (error) {
-      console.error('[NotificationService] ❌ Initialization failed:', error);
-      console.error('[NotificationService] ❌ Error stack:', error.stack);
+    } catch (error: any) {
+      Logger.notificationLog.error('❌ Initialization failed', { 
+        error: error.message,
+        stack: error.stack,
+        fullError: error
+      });
       return false;
     }
   }
@@ -152,24 +159,35 @@ class NotificationService {
    */
   private async registerTokenWithBackend(): Promise<void> {
     if (!this.expoPushToken) {
-      console.log('[NotificationService] ❌ No push token to register');
+      Logger.notificationLog.error('❌ No push token to register');
       return;
     }
 
     try {
       // Use 'expo' as platform since we're using Expo push tokens
       const platform = 'expo';
-      console.log('[NotificationService] 🚀 Calling APIService.registerDeviceToken with token:', this.expoPushToken.substring(0, 30) + '...');
-      console.log('[NotificationService] 🚀 Platform:', platform);
+      Logger.notificationLog.info('🚀 Calling APIService.registerDeviceToken', { 
+        tokenPreview: this.expoPushToken.substring(0, 30) + '...', 
+        platform,
+        tokenLength: this.expoPushToken.length
+      });
       
+      const startTime = Date.now();
       await APIService.registerDeviceToken(this.expoPushToken, platform);
+      const duration = Date.now() - startTime;
       
-      console.log('[NotificationService] ✅ Token registered with backend successfully');
-    } catch (error) {
-      console.error('[NotificationService] ❌ Failed to register token with backend:', error);
-      console.error('[NotificationService] ❌ Error details:', JSON.stringify(error, null, 2));
-      console.error('[NotificationService] ❌ Error response:', error?.response?.data);
-      console.error('[NotificationService] ❌ Error status:', error?.response?.status);
+      Logger.notificationLog.info('✅ Token registered with backend successfully', { 
+        duration: `${duration}ms`,
+        platform 
+      });
+    } catch (error: any) {
+      Logger.notificationLog.error('❌ Failed to register token with backend', {
+        error: error.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        fullError: error
+      });
+      throw error; // Re-throw to see if this affects the flow
     }
   }
 

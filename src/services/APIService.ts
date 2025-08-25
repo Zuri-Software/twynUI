@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import AuthService from './AuthService';
 import { AuthErrorType } from '../types/auth.types';
+import { Logger } from '../utils/Logger';
 
 // API Configuration
 export const API_CONFIG = {
@@ -270,25 +271,36 @@ class APIServiceClass {
   // Push Notifications
   public async registerDeviceToken(deviceToken: string, platform: 'ios' | 'android' | 'expo' = 'expo'): Promise<void> {
     try {
-      console.log('[🔔 APIService] 🚀 Starting device token registration...');
-      console.log('[🔔 APIService] 🚀 Token:', deviceToken.substring(0, 30) + '...');
-      console.log('[🔔 APIService] 🚀 Platform:', platform);
-      console.log('[🔔 APIService] 🚀 Endpoint:', `${API_CONFIG.baseURL}/users/register-device`);
+      Logger.apiLog.info('🚀 Starting device token registration', {
+        tokenPreview: deviceToken.substring(0, 30) + '...',
+        tokenLength: deviceToken.length,
+        platform,
+        endpoint: `${API_CONFIG.baseURL}/users/register-device`
+      });
       
       const payload = {
         deviceToken,
         platform,
       };
       
-      console.log('[🔔 APIService] 🚀 Payload:', JSON.stringify(payload, null, 2));
+      Logger.apiLog.debug('📤 Registration payload', payload);
       
+      const startTime = Date.now();
       const response = await this.post('/users/register-device', payload);
+      const duration = Date.now() - startTime;
       
-      console.log('[🔔 APIService] ✅ Device token registered successfully');
-      console.log('[🔔 APIService] ✅ Response:', response);
-    } catch (error) {
-      console.error('[🔔 APIService] ❌ Failed to register device token:', error);
-      console.error('[🔔 APIService] ❌ Error details:', JSON.stringify(error, null, 2));
+      Logger.apiLog.info('✅ Device token registered successfully', { 
+        response,
+        duration: `${duration}ms`
+      });
+    } catch (error: any) {
+      Logger.apiLog.error('❌ Failed to register device token', {
+        error: error.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        endpoint: `${API_CONFIG.baseURL}/users/register-device`,
+        tokenPreview: deviceToken.substring(0, 30) + '...'
+      });
       throw this.handleError(error);
     }
   }
