@@ -270,15 +270,25 @@ class APIServiceClass {
   // Push Notifications
   public async registerDeviceToken(deviceToken: string, platform: 'ios' | 'android' | 'expo' = 'expo'): Promise<void> {
     try {
+      console.log('[🔔 APIService] 🚀 Starting device token registration...');
+      console.log('[🔔 APIService] 🚀 Token:', deviceToken.substring(0, 30) + '...');
+      console.log('[🔔 APIService] 🚀 Platform:', platform);
+      console.log('[🔔 APIService] 🚀 Endpoint:', `${API_CONFIG.baseURL}/users/register-device`);
+      
       const payload = {
         deviceToken,
         platform,
       };
       
-      await this.post('/users/register-device', payload);
+      console.log('[🔔 APIService] 🚀 Payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await this.post('/users/register-device', payload);
+      
       console.log('[🔔 APIService] ✅ Device token registered successfully');
+      console.log('[🔔 APIService] ✅ Response:', response);
     } catch (error) {
       console.error('[🔔 APIService] ❌ Failed to register device token:', error);
+      console.error('[🔔 APIService] ❌ Error details:', JSON.stringify(error, null, 2));
       throw this.handleError(error);
     }
   }

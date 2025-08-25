@@ -49,8 +49,7 @@
           "color": "#FE6EFD",
           "sounds": ["./assets/sounds/notification.wav"]
         }
-      ],
-      "expo-blur"
+      ]
     ],
     "extra": {
       "eas": {

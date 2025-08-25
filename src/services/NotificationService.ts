@@ -86,21 +86,25 @@ class NotificationService {
    * Initialize notification service and request permissions
    */
   public async initialize(): Promise<boolean> {
-    console.log('[NotificationService] Initializing...');
+    console.log('[NotificationService] 🚀 Initializing...');
 
     try {
       // Only run on physical devices
       if (!Device.isDevice) {
-        console.log('[NotificationService] Notifications only work on physical devices');
+        console.log('[NotificationService] ❌ Notifications only work on physical devices');
         return false;
       }
 
+      console.log('[NotificationService] 📱 Running on physical device, proceeding...');
+
       // Get existing permission status
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      console.log('[NotificationService] 🔍 Existing permission status:', existingStatus);
       let finalStatus = existingStatus;
 
       // If not already granted, request permissions
       if (existingStatus !== 'granted') {
+        console.log('[NotificationService] 📋 Requesting permissions...');
         const { status } = await Notifications.requestPermissionsAsync({
           ios: {
             allowAlert: true,
@@ -109,28 +113,36 @@ class NotificationService {
           },
         });
         finalStatus = status;
+        console.log('[NotificationService] 📋 Permission request result:', finalStatus);
       }
 
       if (finalStatus !== 'granted') {
-        console.log('[NotificationService] Notification permission not granted');
+        console.log('[NotificationService] ❌ Notification permission not granted, final status:', finalStatus);
         return false;
       }
+
+      console.log('[NotificationService] ✅ Permission granted, getting push token...');
 
       // Get the push token
       const tokenData = await Notifications.getExpoPushTokenAsync();
       
       this.expoPushToken = tokenData.data;
-      console.log('[NotificationService] ✅ Push token obtained:', this.expoPushToken);
+      console.log('[NotificationService] 🎯 Push token obtained:', this.expoPushToken);
+      console.log('[NotificationService] 🎯 Token length:', this.expoPushToken?.length);
 
       // Register token with backend
+      console.log('[NotificationService] 🌐 Starting token registration with backend...');
       await this.registerTokenWithBackend();
 
       // Set up notification listeners
+      console.log('[NotificationService] 👂 Setting up notification listeners...');
       this.setupListeners();
 
+      console.log('[NotificationService] ✅ Initialization completed successfully!');
       return true;
     } catch (error) {
       console.error('[NotificationService] ❌ Initialization failed:', error);
+      console.error('[NotificationService] ❌ Error stack:', error.stack);
       return false;
     }
   }
@@ -140,15 +152,24 @@ class NotificationService {
    */
   private async registerTokenWithBackend(): Promise<void> {
     if (!this.expoPushToken) {
-      console.log('[NotificationService] No push token to register');
+      console.log('[NotificationService] ❌ No push token to register');
       return;
     }
 
     try {
-      await APIService.registerDeviceToken(this.expoPushToken, 'expo');
-      console.log('[NotificationService] ✅ Token registered with backend');
+      // Use 'expo' as platform since we're using Expo push tokens
+      const platform = 'expo';
+      console.log('[NotificationService] 🚀 Calling APIService.registerDeviceToken with token:', this.expoPushToken.substring(0, 30) + '...');
+      console.log('[NotificationService] 🚀 Platform:', platform);
+      
+      await APIService.registerDeviceToken(this.expoPushToken, platform);
+      
+      console.log('[NotificationService] ✅ Token registered with backend successfully');
     } catch (error) {
       console.error('[NotificationService] ❌ Failed to register token with backend:', error);
+      console.error('[NotificationService] ❌ Error details:', JSON.stringify(error, null, 2));
+      console.error('[NotificationService] ❌ Error response:', error?.response?.data);
+      console.error('[NotificationService] ❌ Error status:', error?.response?.status);
     }
   }
 

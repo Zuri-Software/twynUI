@@ -24,19 +24,21 @@ export default function NotificationPermissionPopup({ visible, onComplete }: Not
   const handleAllow = async () => {
     setIsLoading(true);
     try {
-      console.log('[NotificationPopup] User allowed notifications - initializing...');
+      console.log('[NotificationPopup] 🚀 User allowed notifications - starting initialization...');
       
       const success = await NotificationService.initialize();
       
       if (success) {
         console.log('[NotificationPopup] ✅ Notifications setup successful');
-        console.log('[NotificationPopup] Device token:', NotificationService.getPushToken());
+        console.log('[NotificationPopup] 🎯 Device token:', NotificationService.getPushToken());
       } else {
-        console.log('[NotificationPopup] ⚠️ Notification setup failed');
+        console.log('[NotificationPopup] ❌ Notification setup failed');
       }
     } catch (error) {
-      console.error('[NotificationPopup] Error setting up notifications:', error);
+      console.error('[NotificationPopup] ❌ Error setting up notifications:', error);
+      console.error('[NotificationPopup] ❌ Full error:', JSON.stringify(error, null, 2));
     } finally {
+      console.log('[NotificationPopup] 🔄 Setting loading to false and calling onComplete');
       setIsLoading(false);
       onComplete();
     }
