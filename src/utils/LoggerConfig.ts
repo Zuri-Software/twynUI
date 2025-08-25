@@ -10,7 +10,7 @@ const LOG_CONFIG = {
   // For EAS preview builds, update this with your computer's IP address
   // You can find it by running: ifconfig (macOS/Linux) or ipconfig (Windows)
   // Example: '192.168.1.100'
-  LOCAL_IP: '192.168.1.xxx', // 👈 UPDATE THIS FOR EAS BUILDS
+  LOCAL_IP: '172.16.141.191', // 👈 UPDATE THIS FOR EAS BUILDS
   
   // Log server port (should match log-server.js)
   PORT: 3001,

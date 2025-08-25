@@ -18,6 +18,9 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select photos for AI model training and image generation.",
         "NSCameraUsageDescription": "This app needs access to your camera to take photos for AI model training."
+      },
+      "entitlements": {
+        "aps-environment": "development"
       }
     },
     "android": {
