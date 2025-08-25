@@ -50,7 +50,8 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#FE6EFD",
-          "sounds": ["./assets/sounds/notification.wav"]
+          "sounds": ["./assets/sounds/notification.wav"],
+          "iosDisplayInForeground": true
         }
       ]
     ],

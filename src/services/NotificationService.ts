@@ -124,8 +124,10 @@ class NotificationService {
 
       Logger.notificationLog.info('✅ Permission granted, getting push token...');
 
-      // Get the push token
-      const tokenData = await Notifications.getExpoPushTokenAsync();
+      // Get the push token - try with explicit project ID
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '895b0ffc-ca13-47ca-9d32-504395c39b6f'
+      });
       
       this.expoPushToken = tokenData.data;
       Logger.notificationLog.info('🎯 Push token obtained', { 
