@@ -9,7 +9,8 @@
       "distribution": "internal",
       "node": "20.18.0",
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "APP_VARIANT": "development"
       }
     },
     "preview": {
@@ -27,7 +28,12 @@
       "autoIncrement": true,
       "node": "20.18.0",
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "APP_VARIANT": "production"
+      },
+      "ios": {
+        "buildConfiguration": "Release",
+        "simulator": false
       }
     }
   },

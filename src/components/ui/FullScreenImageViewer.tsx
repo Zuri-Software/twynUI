@@ -11,7 +11,11 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ImageViewer from 'react-native-image-zoom-viewer';
+import { Image } from 'expo-image';
+import { Share } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import { useFavorites } from '../../context/FavoritesContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -39,6 +43,13 @@ function FullScreenImageViewer({
   const [showControls, setShowControls] = useState(true);
   const controlsTimer = useRef<NodeJS.Timeout | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Favorites context - now natively supports images
+  const { isFavorited, addFavorite, removeFavorite } = useFavorites();
+  
+  // Current image info
+  const currentImageUrl = batch.images[currentIndex];
+  const isImageFavorited = isFavorited(currentImageUrl, 'image');
 
   // Format generation date - memoized
   const formattedDate = React.useMemo(() => {
@@ -126,6 +137,113 @@ function FullScreenImageViewer({
     }
   };
 
+  const handleShare = async () => {
+    try {
+      const currentImageUrl = batch.images[currentIndex];
+      console.log('[FullScreenImageViewer] Sharing image:', currentImageUrl);
+      
+      // Download the image to a temporary file first
+      const filename = `twyn_image_${Date.now()}.jpg`;
+      const tempPath = `${FileSystem.cacheDirectory}${filename}`;
+      
+      console.log('[FullScreenImageViewer] Downloading image to:', tempPath);
+      const downloadResult = await FileSystem.downloadAsync(currentImageUrl, tempPath);
+      
+      if (downloadResult.status === 200) {
+        // Share the local file instead of the URL
+        await Share.share({
+          url: downloadResult.uri,
+          message: 'Check out this AI-generated image from Twyn!',
+        });
+        
+        console.log('[FullScreenImageViewer] Successfully shared local image file');
+      } else {
+        throw new Error('Failed to download image');
+      }
+      
+    } catch (error) {
+      console.error('[FullScreenImageViewer] Share error:', error);
+      alert('Failed to share image');
+    }
+  };
+
+  const handleFavoriteToggle = async () => {
+    try {
+      console.log('[FullScreenImageViewer] Toggling favorite for image:', currentImageUrl);
+      
+      if (isImageFavorited) {
+        // Remove from favorites
+        await removeFavorite(currentImageUrl, 'image');
+        console.log('[FullScreenImageViewer] Removed from favorites');
+      } else {
+        // Add to favorites
+        const favoriteItem = {
+          id: currentImageUrl,
+          type: 'image' as const,
+          data: {
+            imageUrl: currentImageUrl,
+            batchId: batch.id,
+            generatedAt: batch.generatedAt,
+            prompt: batch.preset?.prompt || '',
+          },
+          createdAt: new Date(),
+        };
+        
+        await addFavorite(favoriteItem);
+        console.log('[FullScreenImageViewer] Added to favorites');
+      }
+    } catch (error) {
+      console.error('[FullScreenImageViewer] Favorite error:', error);
+      alert('Failed to update favorites');
+    }
+  };
+
+  const handleSaveToPhotos = async () => {
+    try {
+      const currentImageUrl = batch.images[currentIndex];
+      console.log('[FullScreenImageViewer] Saving image directly to Photos:', currentImageUrl);
+      
+      // Request media library permissions first
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access photo library is required to save images.');
+        return;
+      }
+      
+      // Download the image to a temporary file first
+      const filename = `twyn_image_${Date.now()}.jpg`;
+      const tempPath = `${FileSystem.cacheDirectory}${filename}`;
+      
+      console.log('[FullScreenImageViewer] Downloading image to:', tempPath);
+      const downloadResult = await FileSystem.downloadAsync(currentImageUrl, tempPath);
+      
+      if (downloadResult.status === 200) {
+        // Save directly to photo library
+        await MediaLibrary.saveToLibraryAsync(downloadResult.uri);
+        alert('Image saved to Photos!');
+        console.log('[FullScreenImageViewer] Successfully saved image to Photos');
+      } else {
+        throw new Error('Failed to download image');
+      }
+      
+    } catch (error) {
+      console.error('[FullScreenImageViewer] Save to photos error:', error);
+      alert('Failed to save image to Photos');
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const currentImageUrl = batch.images[currentIndex];
+      console.log('[FullScreenImageViewer] Deleting image:', currentImageUrl);
+      
+      // TODO: Show confirmation dialog and implement delete
+      alert('Delete functionality - coming soon!');
+    } catch (error) {
+      console.error('[FullScreenImageViewer] Delete error:', error);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -147,25 +265,34 @@ function FullScreenImageViewer({
         >
           {batch.images.map((imageUri, index) => (
             <View key={index} style={styles.imageContainer}>
-              <ImageViewer
-                imageUrls={[{ url: imageUri }]}
-                index={0}
-                onSwipeDown={() => {}} // Disabled - we handle dismiss with back button
-                onChange={() => {}} // Single image per viewer
-                onClick={handleImageTap}
-                enableSwipeDown={false}
-                doubleClickInterval={index === currentIndex ? 250 : 0} // Only enable double-tap on current image
-                enablePreload={false}
-                backgroundColor="white"
-                saveToLocalByLongPress={false}
-                renderHeader={() => <View />} // No header per image - we have global header
-                renderFooter={() => <View />}
-                renderIndicator={() => <View />}
-                // Disable zoom for non-current images
-                maxOverflow={index === currentIndex ? 300 : 0}
-                minScale={1}
-                maxScale={index === currentIndex ? 3 : 1}
-              />
+              <ScrollView
+                style={styles.zoomContainer}
+                contentContainerStyle={styles.zoomContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                zoomScale={1}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                scrollEnabled={index === currentIndex} // Only allow scroll on current image
+                onScrollBeginDrag={() => setShowControls(false)} // Hide controls when zooming
+                onScrollEndDrag={() => setShowControls(true)} // Show controls after zoom
+              >
+                <TouchableOpacity 
+                  onPress={handleImageTap}
+                  activeOpacity={1}
+                  disabled={index !== currentIndex} // Only allow tap on current image
+                >
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={styles.fullScreenImage}
+                    contentFit="contain"
+                    priority="high"
+                    cachePolicy="memory-disk"
+                    transition={200}
+                    placeholder="Loading..."
+                  />
+                </TouchableOpacity>
+              </ScrollView>
             </View>
           ))}
         </ScrollView>
@@ -201,6 +328,45 @@ function FullScreenImageViewer({
             </View>
           </View>
         )}
+
+        {/* Footer with share, favorites, delete */}
+        {showControls && (
+          <View style={styles.footer}>
+            <View style={styles.footerBlur}>
+              <TouchableOpacity 
+                style={styles.footerButton}
+                onPress={handleShare}
+                activeOpacity={0.7}
+              >
+                <View style={styles.buttonIconContainer}>
+                  <Text style={styles.shareIcon}>↗</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.footerButton}
+                onPress={handleFavoriteToggle}
+                activeOpacity={0.7}
+              >
+                <View style={styles.buttonIconContainer}>
+                  <Text style={[styles.heartIcon, isImageFavorited && styles.heartIconFilled]}>
+                    {isImageFavorited ? '♥' : '♡'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.footerButton}
+                onPress={handleSaveToPhotos}
+                activeOpacity={0.7}
+              >
+                <View style={styles.buttonIconContainer}>
+                  <Text style={styles.saveIcon}>↓</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </Modal>
   );
@@ -215,6 +381,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   imageContainer: {
+    width: screenWidth,
+    height: screenHeight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomContainer: {
+    flex: 1,
+  },
+  zoomContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
     width: screenWidth,
     height: screenHeight,
   },
@@ -287,6 +467,61 @@ const styles = StyleSheet.create({
     color: '#333333',
     fontSize: 14,
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'white',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
+    fontWeight: '500',
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 44, // Safe area padding
+  },
+  footerBlur: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingVertical: 10,
+    paddingHorizontal: 40,
+  },
+  footerButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareIcon: {
+    fontSize: 24,
+    color: '#007AFF',
+    fontWeight: 'bold',
+  },
+  heartIcon: {
+    fontSize: 24,
+    color: '#007AFF',
+  },
+  heartIconFilled: {
+    color: '#FF3B30', // Red when favorited
+  },
+  saveIcon: {
+    fontSize: 24,
+    color: '#007AFF',
+    fontWeight: 'bold',
   },
 });
 

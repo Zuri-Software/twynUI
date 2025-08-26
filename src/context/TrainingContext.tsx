@@ -12,6 +12,7 @@ interface Model {
   higgsfield_id: string | null;
   created_at: string;
   status: 'training' | 'completed' | 'failed';
+  photo_count: number;
 }
 
 // Extended interface for UI components
@@ -26,6 +27,7 @@ interface SkeletonModel {
   name: string;
   isTraining: true;
   created_at: string;
+  photoCount: number;
 }
 
 interface TrainingState {
@@ -174,6 +176,7 @@ export const TrainingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         higgsfield_id: apiModel.higgsfield_id || null, // Convert undefined to null
         created_at: apiModel.created_at,
         status: apiModel.status as 'training' | 'completed' | 'failed', // Type assertion for status
+        photo_count: apiModel.photo_count || 0, // Include photo_count
       }));
       
       // Check for completed training - remove skeleton models when real models are found
@@ -248,6 +251,7 @@ export const TrainingProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         name,
         isTraining: true,
         created_at: new Date().toISOString(),
+        photoCount: photos.length,
       };
       console.log(`[TrainingContext] Adding skeleton model:`, skeletonModel);
       dispatch({ type: 'ADD_SKELETON_MODEL', payload: skeletonModel });

@@ -262,6 +262,12 @@ class APIServiceClass {
     try {
       const response = await this.get<any>('/users/models');
       console.log(`[📱 APIService] Fetched ${response.models.length} models from backend`);
+      
+      // Debug: Log the first model to see what we received
+      if (response.models.length > 0) {
+        console.log('[📱 APIService] Sample model received:', JSON.stringify(response.models[0], null, 2));
+      }
+      
       return response;
     } catch (error) {
       throw this.handleError(error);
@@ -308,7 +314,8 @@ class APIServiceClass {
   public async hasDeviceToken(): Promise<boolean> {
     try {
       const response = await this.get('/users/device-token-status');
-      const hasToken = response.data?.hasDeviceToken || false;
+      console.log('[🔔 APIService] Raw response:', JSON.stringify(response, null, 2));
+      const hasToken = response.hasDeviceToken || false;
       console.log('[🔔 APIService] Device token status:', hasToken);
       return hasToken;
     } catch (error) {

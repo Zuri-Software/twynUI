@@ -518,7 +518,7 @@ function TrainingContent({}: TrainingContentProps) {
                         status: 'training' as const,
                         thumbnailURL: null,
                         trainingImageCount: 0,
-                        photoCount: 20 // Default for skeleton models
+                        photoCount: skeletonModel.photoCount || 20 // Use actual or default
                       }}
                       isSelected={selectedLoraId === skeletonModel.id}
                       isDeleteMode={isDeleteMode}
@@ -530,14 +530,16 @@ function TrainingContent({}: TrainingContentProps) {
                   </View>
                 ))}
                 {/* Completed models */}
-                {models.map((model) => (
+                {models.map((model) => {
+                  console.log('[TrainingScreen] Model data:', { id: model.id, name: model.name, photo_count: model.photo_count });
+                  return (
                   <View key={model.id} style={[styles.modelItem, { width: itemWidth }]}>
                     <ModelCard
                       model={{
                         ...model,
                         thumbnailURL: model.thumbnail_url,
                         trainingImageCount: 0, // TODO: Get from API
-                        photoCount: 20 // TODO: Get from API
+                        photoCount: model.photo_count || 20 // Use actual count from API
                       }}
                       isSelected={selectedLoraId === model.id}
                       isDeleteMode={isDeleteMode}
@@ -547,7 +549,8 @@ function TrainingContent({}: TrainingContentProps) {
                       onDelete={() => handleDeleteModel(model.id)}
                     />
                   </View>
-                ))}
+                  );
+                })}
               </View>
             </View>
           )}
