@@ -4,17 +4,19 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  StatusBar,
   Dimensions,
   Modal,
   ScrollView,
   Animated,
 } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Reanimated, { runOnJS, useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Share } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
+import { StatusBar } from 'expo-status-bar';
 import { useFavorites } from '../../context/FavoritesContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -43,6 +45,11 @@ function FullScreenImageViewer({
   const [showControls, setShowControls] = useState(true);
   const controlsTimer = useRef<NodeJS.Timeout | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Shared values for swipe-to-dismiss
+  const translateY = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const scale = useSharedValue(1);
   
   // Favorites context - now natively supports images
   const { isFavorited, addFavorite, removeFavorite } = useFavorites();
@@ -102,16 +109,17 @@ function FullScreenImageViewer({
     }
   }, [initialIndex, visible]);
 
-  // Handle status bar when visible changes
+  // Handle initial setup when modal becomes visible
   useEffect(() => {
     if (visible) {
-      StatusBar.setBarStyle('light-content', true);
-      StatusBar.setHidden(false, 'fade');
+      // Reset all animated values when modal opens
+      translateY.value = 0;
+      opacity.value = 1;
+      scale.value = 1;
+      
       setShowControls(true);
       startControlsTimer();
     } else {
-      StatusBar.setBarStyle('default', true);
-      StatusBar.setHidden(false, 'fade');
       clearControlsTimer();
     }
   }, [visible]);
@@ -136,6 +144,67 @@ function FullScreenImageViewer({
       startControlsTimer();
     }
   };
+
+  // Swipe-to-dismiss gesture - only activate for clearly vertical swipes
+  const panGesture = Gesture.Pan()
+    .maxPointers(1)
+    .activeOffsetY(25)  // Need 25px vertical movement to activate
+    .failOffsetX([-30, 30])  // Fail if more than 30px horizontal movement
+    .onUpdate((event) => {
+      const { translationY, translationX } = event;
+      
+      // Only respond to downward swipes that are clearly more vertical than horizontal
+      if (translationY > 0 && Math.abs(translationY) > Math.abs(translationX) * 1.5) {
+        translateY.value = translationY;
+        
+        // Calculate progress for visual feedback
+        const progress = Math.min(translationY / 200, 1);
+        const backgroundOpacity = Math.max(0.3, 1 - progress);
+        const imageScale = Math.max(0.8, 1 - progress * 0.2);
+        
+        opacity.value = backgroundOpacity;
+        scale.value = imageScale;
+        
+        // Hide controls during drag
+        if (showControls) {
+          runOnJS(setShowControls)(false);
+        }
+      }
+    })
+    .onEnd((event) => {
+      const { translationY, velocityY } = event;
+      
+      // Determine if should dismiss based on distance or velocity
+      const shouldDismiss = translationY > 120 || (translationY > 60 && velocityY > 400);
+      
+      if (shouldDismiss) {
+        // Animate to dismiss
+        translateY.value = withTiming(screenHeight, { duration: 300 });
+        opacity.value = withTiming(0, { duration: 300 });
+        scale.value = withTiming(0.8, { duration: 300 }, () => {
+          runOnJS(onDismiss)();
+        });
+      } else {
+        // Return to original position
+        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+        opacity.value = withSpring(1, { damping: 20, stiffness: 300 });
+        scale.value = withSpring(1, { damping: 20, stiffness: 300 }, () => {
+          runOnJS(setShowControls)(true);
+          runOnJS(startControlsTimer)();
+        });
+      }
+    });
+
+  // Animated style for the container
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateY: translateY.value },
+        { scale: scale.value },
+      ],
+      opacity: opacity.value,
+    };
+  });
 
   const handleShare = async () => {
     try {
@@ -252,19 +321,32 @@ function FullScreenImageViewer({
       onRequestClose={onDismiss}
       supportedOrientations={['portrait']}
     >
-      <View style={styles.container}>
-        {/* Horizontal ScrollView for seamless swiping */}
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={handleScrollEnd}
-          scrollEventThrottle={16}
-          contentContainerStyle={styles.scrollContainer}
+      <StatusBar style={showControls ? "dark" : "light"} backgroundColor="transparent" />
+      <GestureHandlerRootView style={styles.container}>
+        <Reanimated.View 
+          style={[
+            styles.animatedContainer,
+            animatedStyle
+          ]}
         >
+          {/* White background overlay that appears/disappears with controls */}
+          {showControls && <View style={styles.whiteBackgroundOverlay} />}
+          
+        
+        {/* Horizontal ScrollView for seamless swiping */}
+        <GestureDetector gesture={panGesture}>
+          <ScrollView
+            ref={scrollViewRef as any}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={handleScrollEnd}
+            scrollEventThrottle={16}
+            contentContainerStyle={styles.scrollContainer}
+            style={styles.imageScrollView}
+          >
           {batch.images.map((imageUri, index) => (
-            <View key={index} style={styles.imageContainer}>
+            <View key={`image-${index}`} style={styles.imageContainer}>
               <ScrollView
                 style={styles.zoomContainer}
                 contentContainerStyle={styles.zoomContent}
@@ -295,11 +377,12 @@ function FullScreenImageViewer({
               </ScrollView>
             </View>
           ))}
-        </ScrollView>
+          </ScrollView>
+        </GestureDetector>
         
         {/* Global header overlay */}
-        {showControls && (
-          <View style={styles.overlayHeader}>
+        <SafeAreaView style={styles.overlayHeader} edges={['top']}>
+          {showControls && (
             <View style={styles.topControls}>
               <View style={styles.leftSection}>
                 <TouchableOpacity style={styles.backButton} onPress={onDismiss}>
@@ -326,12 +409,12 @@ function FullScreenImageViewer({
                 )}
               </View>
             </View>
-          </View>
-        )}
+          )}
+        </SafeAreaView>
 
         {/* Footer with share, favorites, delete */}
-        {showControls && (
-          <View style={styles.footer}>
+        <SafeAreaView style={styles.footer} edges={['bottom']}>
+          {showControls && (
             <View style={styles.footerBlur}>
               <TouchableOpacity 
                 style={styles.footerButton}
@@ -365,9 +448,10 @@ function FullScreenImageViewer({
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
-        )}
-      </View>
+          )}
+        </SafeAreaView>
+        </Reanimated.View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -375,7 +459,22 @@ function FullScreenImageViewer({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: 'black',
+  },
+  animatedContainer: {
+    flex: 1,
+  },
+  whiteBackgroundOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'white',
+    zIndex: 1,
+  },
+  imageScrollView: {
+    zIndex: 2,
   },
   scrollContainer: {
     flexDirection: 'row',
@@ -400,10 +499,10 @@ const styles = StyleSheet.create({
   },
   overlayHeader: {
     position: 'absolute',
-    top: 44, // Status bar height
+    top: 0,
     left: 0,
     right: 0,
-    zIndex: 1000,
+    zIndex: 10,
   },
   topControls: {
     flexDirection: 'row',
@@ -484,7 +583,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingBottom: 44, // Safe area padding
+    zIndex: 10,
   },
   footerBlur: {
     flexDirection: 'row',

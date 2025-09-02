@@ -132,8 +132,11 @@ function GalleryContent() {
           {/* Gallery Grid */}
           <View style={styles.gridContainer}>
             <View style={styles.grid}>
-              {/* Skeleton generations (loading and failed) */}
-              {skeletonGenerations.length > 0 && console.log('[GalleryScreen] 🎨 Rendering', skeletonGenerations.length, 'skeleton generations')}
+              {/* Skeleton generations (loading and failed) from GenerationContext */}
+              {skeletonGenerations.length > 0 && ((() => {
+                console.log('[GalleryScreen] 🎨 Rendering', skeletonGenerations.length, 'skeleton generations');
+                return null;
+              })())}
               {skeletonGenerations.map((skeleton) => {
                 console.log('[GalleryScreen] 🎨 Rendering skeleton for:', skeleton.id, skeleton.preset?.name, 'failed:', skeleton.failed);
                 return (
@@ -148,6 +151,30 @@ function GalleryContent() {
                       failed={skeleton.failed}
                       errorMessage={skeleton.errorMessage}
                       onRetry={() => retryGeneration(skeleton.id)}
+                    />
+                  </View>
+                );
+              })}
+
+              {/* Pending generations (loading) from GalleryContext (for camera captures) */}
+              {pendingGenerations.length > 0 && ((() => {
+                console.log('[GalleryScreen] 📸 Rendering', pendingGenerations.length, 'pending camera generations');
+                return null;
+              })())}
+              {pendingGenerations.map((pending) => {
+                console.log('[GalleryScreen] 📸 Rendering pending camera generation for:', pending.id, pending.preset?.name);
+                return (
+                  <View key={pending.id} style={[styles.gridItem, { width: itemWidth }]}>
+                    <SkeletonImageView 
+                      preset={{
+                        name: pending.preset.name,
+                        image_url: pending.preset.image_url
+                      }}
+                      width={itemWidth - 10}
+                      height={(itemWidth - 10) * 4 / 3}
+                      failed={false}
+                      errorMessage={undefined}
+                      onRetry={() => {}} // Camera generations don't have retry functionality
                     />
                   </View>
                 );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Svg, Path, G, ClipPath, Defs, Rect } from 'react-native-svg';
+import { Svg, Path, G, ClipPath, Defs, Rect, Circle } from 'react-native-svg';
 
 interface TabIconProps {
   size?: number;
@@ -98,6 +98,41 @@ export function GalleryIcon({ size = 28, color = '#666666', focused = false }: T
           <Rect width="24" height="24" fill="white"/>
         </ClipPath>
       </Defs>
+    </Svg>
+  );
+}
+
+// Camera Icon Component  
+export function CameraIcon({ size = 32, color = '#666666', focused = false }: TabIconProps) {
+  const fillColor = focused ? '#000000' : '#ffffff';
+  const bgColor = focused ? '#ffffff' : 'transparent';
+  const borderColor = focused ? '#ffffff' : 'rgba(255, 255, 255, 0.3)';
+  
+  return (
+    <Svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      {/* Camera body background (circular for center tab) */}
+      <Circle cx="16" cy="16" r="16" fill={bgColor} stroke={borderColor} strokeWidth="2" />
+      
+      {/* Camera body */}
+      <Path
+        d="M8 12H24C25.1046 12 26 12.8954 26 14V22C26 23.1046 25.1046 24 24 24H8C6.89543 24 6 23.1046 6 22V14C6 12.8954 6.89543 12 8 12Z"
+        fill={fillColor}
+      />
+      
+      {/* Camera lens */}
+      <Circle cx="16" cy="18" r="3" fill={bgColor} stroke={fillColor} strokeWidth="1" />
+      <Circle cx="16" cy="18" r="1.5" fill={fillColor} />
+      
+      {/* Camera flash */}
+      <Circle cx="20" cy="14.5" r="0.8" fill={fillColor} />
+      
+      {/* Camera top (viewfinder hump) */}
+      <Path
+        d="M11 12V10C11 9.44772 11.4477 9 12 9H20C20.5523 9 21 9.44772 21 10V12"
+        stroke={fillColor}
+        strokeWidth="1"
+        fill="none"
+      />
     </Svg>
   );
 }

@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Image } from 'expo-image';
-import { HomeIcon, FavoritesIcon, GalleryIcon, TrainingIcon } from '../components/icons/TabIcons';
+import { HomeIcon, FavoritesIcon, GalleryIcon, TrainingIcon, CameraIcon } from '../components/icons/TabIcons';
 import { CONTAINER_RADIUS } from '../styles/borderRadius';
 
 // Import screens
@@ -13,6 +13,7 @@ import FavoritesScreen from '../screens/main/FavoritesScreen';
 import GalleryScreen from '../screens/main/GalleryScreen';
 import TrainingScreen from '../screens/main/TrainingScreen';
 import PresetDetailScreen from '../screens/main/PresetDetailScreen';
+import CameraScreen from '../screens/main/CameraScreen';
 import { useGeneration } from '../context/GenerationContext';
 import { useTraining } from '../context/TrainingContext';
 import { useAppState } from '../context/AppStateContext';
@@ -150,7 +151,7 @@ function TrainingStackNavigator() {
   );
 }
 
-// Custom Tab Bar (matching Swift design)
+// Custom Tab Bar with center camera button
 function CustomTabBar({ state, descriptors, navigation, selectedTab, onTabChange }: any) {
   const getTabIcon = (routeName: string, isFocused: boolean) => {
     const iconProps = {
@@ -173,44 +174,79 @@ function CustomTabBar({ state, descriptors, navigation, selectedTab, onTabChange
     }
   };
 
+  const handleCameraPress = () => {
+    navigation.navigate('CameraModal');
+  };
+
+  const handleTabPress = (route: any, index: number) => {
+    const isFocused = state.index === index;
+    const event = navigation.emit({
+      type: 'tabPress',
+      target: route.key,
+      canPreventDefault: true,
+    });
+
+    if (!isFocused && !event.defaultPrevented) {
+      if (onTabChange) {
+        onTabChange(index);
+      }
+      navigation.navigate(route.name);
+    }
+  };
+
+  // Split routes into left and right sides
+  const leftRoutes = state.routes.slice(0, 2); // Home, Favorites
+  const rightRoutes = state.routes.slice(2);   // Gallery, Training
+
   return (
     <View style={styles.tabBar}>
       <View style={styles.tabContainer}>
         <View style={styles.spacer} />
-        <View style={styles.tabIconsContainer}>
-        {state.routes.map((route: any, index: number) => {
-          const { options } = descriptors[route.key];
-          const label = options.tabBarLabel !== undefined ? options.tabBarLabel : route.name;
-          const isFocused = state.index === index;
-
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-
-            if (!isFocused && !event.defaultPrevented) {
-              // Call our custom tab change handler if provided
-              if (onTabChange) {
-                onTabChange(index);
-              }
-              navigation.navigate(route.name);
-            }
-          };
-
-          return (
-            <TouchableOpacity
-              key={route.key}
-              style={styles.tabButton}
-              onPress={onPress}
-              activeOpacity={0.7}
-            >
-              {getTabIcon(route.name, isFocused)}
-            </TouchableOpacity>
-          );
-        })}
+        
+        {/* Left side tabs */}
+        <View style={styles.tabSideContainer}>
+          {leftRoutes.map((route: any, index: number) => {
+            const isFocused = state.index === index;
+            return (
+              <TouchableOpacity
+                key={route.key}
+                style={styles.tabButton}
+                onPress={() => handleTabPress(route, index)}
+                activeOpacity={0.7}
+              >
+                {getTabIcon(route.name, isFocused)}
+              </TouchableOpacity>
+            );
+          })}
         </View>
+
+        {/* Center Camera Button */}
+        <TouchableOpacity
+          style={styles.cameraButton}
+          onPress={handleCameraPress}
+          activeOpacity={0.8}
+        >
+          <CameraIcon size={36} />
+        </TouchableOpacity>
+
+        {/* Right side tabs */}
+        <View style={styles.tabSideContainer}>
+          {rightRoutes.map((route: any, index: number) => {
+            const originalIndex = index + 2; // Adjust for original position
+            const isFocused = state.index === originalIndex;
+            return (
+              <TouchableOpacity
+                key={route.key}
+                style={styles.tabButton}
+                onPress={() => handleTabPress(route, originalIndex)}
+                activeOpacity={0.7}
+              >
+                {getTabIcon(route.name, isFocused)}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        
         <View style={styles.spacer} />
       </View>
     </View>
@@ -320,16 +356,42 @@ function MainTabNavigator() {
   );
 }
 
+// Create Root Stack Navigator for modals
+const RootStack = createStackNavigator();
+
 // Main App Navigator
 export default function AppNavigator() {
   console.log('[AppNavigator] 🚀 Rendering AppNavigator');
   
   return (
     <NavigationContainer theme={{ colors: { background: '#000000' } }}>
-      <View style={styles.appContainer}>
-        <MainTabNavigator />
-      </View>
+      <RootStack.Navigator 
+        screenOptions={{ 
+          headerShown: false,
+          presentation: 'modal',
+          animationTypeForReplace: 'push',
+        }}
+      >
+        <RootStack.Screen name="MainTabs" component={MainTabsWithContainer} />
+        <RootStack.Screen 
+          name="CameraModal" 
+          component={CameraScreen}
+          options={{
+            presentation: 'fullScreenModal',
+            animationTypeForReplace: 'push',
+          }}
+        />
+      </RootStack.Navigator>
     </NavigationContainer>
+  );
+}
+
+// Wrapper for MainTabNavigator with container styling
+function MainTabsWithContainer() {
+  return (
+    <View style={styles.appContainer}>
+      <MainTabNavigator />
+    </View>
   );
 }
 
@@ -368,8 +430,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    minWidth: 200, // Approximate width for 4 icons with 30pt spacing
-    gap: 30, // Match SwiftUI spacing between icons
+    minWidth: 300, // Wider for 5 positions (4 tabs + camera)
+    gap: 20,
+  },
+  tabSideContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 30, // Match original spacing
+  },
+  cameraButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 56, // Larger for prominence
+    height: 56,
+    marginHorizontal: 20, // Extra space from side tabs
   },
   tabButton: {
     alignItems: 'center',

@@ -54,6 +54,9 @@ export default function AnimatedPresetModal({
 
   // Context hooks
   const { isFavorited, toggleFavorite } = useFavorites();
+  
+  // Helper function to check if current preset is favorited
+  const isCurrentPresetFavorited = preset ? isFavorited(preset.id, 'preset') : false;
   const { models, skeletonModels } = useTraining();
   const { selectedLoraId, selectLoRA } = useAppState();
   const { startGeneration } = useGeneration();
@@ -246,7 +249,9 @@ export default function AnimatedPresetModal({
   // Handle favorite toggle
   const handleFavoriteToggle = async () => {
     if (preset) {
+      console.log('[AnimatedPresetModal] Toggling favorite for preset:', preset.id, 'Current state:', isCurrentPresetFavorited);
       await toggleFavorite(preset);
+      console.log('[AnimatedPresetModal] After toggle, new state should be:', !isCurrentPresetFavorited);
     }
   };
 
@@ -367,14 +372,17 @@ export default function AnimatedPresetModal({
               <Text style={styles.presetTitle}>{preset.name}</Text>
               
               <TouchableOpacity 
-                style={styles.favoriteButton}
+                style={[
+                  styles.favoriteButton,
+                  isCurrentPresetFavorited && styles.favoriteButtonActive
+                ]}
                 onPress={handleFavoriteToggle}
               >
                 <Text style={[
                   styles.favoriteIcon,
-                  { color: isFavorited(preset) ? '#FF69B4' : 'rgba(255,255,255,0.7)' }
+                  { color: isCurrentPresetFavorited ? '#FE6EFD' : 'rgba(255,255,255,0.7)' }
                 ]}>
-                  {isFavorited(preset) ? '❤️' : '🤍'}
+                  ♥
                 </Text>
               </TouchableOpacity>
             </View>
@@ -403,7 +411,7 @@ export default function AnimatedPresetModal({
                     />
                   ) : (
                     <View style={styles.defaultThumbnail}>
-                      <Text style={styles.defaultThumbnailIcon}>👤</Text>
+                      {/* Pink circle for empty state */}
                     </View>
                   )}
                 </View>
@@ -579,9 +587,15 @@ const styles = StyleSheet.create({
   },
   favoriteButton: {
     padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+  },
+  favoriteButtonActive: {
+    backgroundColor: 'rgba(254, 110, 253, 0.2)', // Pink background when favorited
   },
   favoriteIcon: {
-    fontSize: 20,
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   generateButtonContainer: {
     width: '100%',
@@ -647,7 +661,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(128,128,128,0.3)',
+    backgroundColor: '#FE6EFD', // Pink circle for empty state
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,

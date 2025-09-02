@@ -7,6 +7,7 @@ import { GalleryProvider } from '../context/GalleryContext';
 import { GenerationProvider } from '../context/GenerationContext';
 import { TrainingProvider } from '../context/TrainingContext';
 import { AppStateProvider } from '../context/AppStateContext';
+import { CameraProvider } from '../context/CameraContext';
 import ErrorBoundary from '../components/ui/ErrorBoundary';
 import { Loading, LoadingType } from '../components/ui/LoadingStates';
 import { AuthState } from '../types/auth.types';
@@ -87,14 +88,16 @@ function AppContent() {
               <TrainingProvider>
                 <GenerationProvider>
                   <GalleryProvider>
-                    <ErrorBoundary
-                      onError={(error, errorInfo) => {
-                        console.error('❌ [RootScreen] Navigation error:', error);
-                        // TODO: Handle navigation specific errors
-                      }}
-                    >
-                      <AppNavigator key={`nav-${authState}-${user?.id || 'none'}`} />
-                    </ErrorBoundary>
+                    <CameraProvider>
+                      <ErrorBoundary
+                        onError={(error, errorInfo) => {
+                          console.error('❌ [RootScreen] Navigation error:', error);
+                          // TODO: Handle navigation specific errors
+                        }}
+                      >
+                        <AppNavigator key={`nav-${authState}-${user?.id || 'none'}`} />
+                      </ErrorBoundary>
+                    </CameraProvider>
                   </GalleryProvider>
                 </GenerationProvider>
               </TrainingProvider>

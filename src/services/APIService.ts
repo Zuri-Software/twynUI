@@ -626,6 +626,104 @@ class APIServiceClass {
       // Don't throw - this is a secondary operation that shouldn't fail the main delete
     }
   }
+
+  // Camera API Methods
+  public async captureAndGenerate(formData: FormData): Promise<{
+    success: boolean;
+    data?: {
+      captureId: string;
+      prompt: string;
+      generationId?: string;
+      estimatedTime?: number;
+      metadata?: any;
+    };
+    error?: string;
+  }> {
+    try {
+      console.log('[📸 APIService] Starting camera capture and generation');
+      
+      const response = await this.axiosInstance.post('/camera/capture', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: API_CONFIG.generationTimeout, // Use longer timeout
+      });
+
+      console.log('[📸 APIService] Capture successful:', response.data);
+      return {
+        success: true,
+        data: response.data.data,
+      };
+    } catch (error: any) {
+      console.error('[📸 APIService] Capture failed:', error);
+      const handledError = this.handleError(error);
+      return {
+        success: false,
+        error: handledError.message,
+      };
+    }
+  }
+
+  public async analyzePhoto(formData: FormData): Promise<{
+    success: boolean;
+    data?: {
+      prompt: string;
+      metadata?: any;
+    };
+    error?: string;
+  }> {
+    try {
+      console.log('[🔍 APIService] Starting photo analysis');
+      
+      const response = await this.axiosInstance.post('/camera/analyze', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('[🔍 APIService] Analysis successful:', response.data);
+      return {
+        success: true,
+        data: response.data.data,
+      };
+    } catch (error: any) {
+      console.error('[🔍 APIService] Analysis failed:', error);
+      const handledError = this.handleError(error);
+      return {
+        success: false,
+        error: handledError.message,
+      };
+    }
+  }
+
+  public async getCaptureHistory(limit?: number, offset?: number): Promise<{
+    success: boolean;
+    data?: any[];
+    error?: string;
+  }> {
+    try {
+      console.log('[📋 APIService] Getting capture history');
+      
+      const params = new URLSearchParams();
+      if (limit) params.append('limit', limit.toString());
+      if (offset) params.append('offset', offset.toString());
+
+      const response = await this.get<any>(`/camera/captures?${params.toString()}`);
+
+      console.log('[📋 APIService] Capture history loaded:', response.length, 'items');
+      return {
+        success: true,
+        data: response,
+      };
+    } catch (error: any) {
+      console.error('[📋 APIService] Failed to get capture history:', error);
+      const handledError = this.handleError(error);
+      return {
+        success: false,
+        error: handledError.message,
+      };
+    }
+  }
 }
 
 // Export singleton instance

@@ -41,6 +41,12 @@ export default {
   ],
   plugins: [
     [
+      'expo-camera',
+      {
+        cameraPermission: 'This app needs access to your camera to take photos for AI model training.'
+      }
+    ],
+    [
       'expo-image-picker',
       {
         photosPermission: 'This app needs access to your photo library to select photos for AI model training and image generation.',
